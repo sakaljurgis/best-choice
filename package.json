@@ -1,0 +1,30 @@
+{
+  "name": "best-choice",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm --workspace @best-choice/server run dev",
+    "dev:client": "npm --workspace @best-choice/client run dev",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "description": "",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "^9.37.0",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.37.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "typescript-eslint": "^8.46.0"
+  }
+}

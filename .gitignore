@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+.DS_Store
+*.log
+client/dist
+server/dist
+codex.sh
+.env
+.idea
+.git

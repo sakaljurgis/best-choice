@@ -1,0 +1,31 @@
+{
+  "name": "@best-choice/server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "echo \"No tests yet\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "description": "Express API for the best-choice project",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "pg": "^8.12.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.7.1",
+    "@types/pg": "^8.11.6",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
