@@ -1,13 +1,16 @@
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from '../layouts/app-layout';
-import HealthPage from '../pages/health-page';
+import ProjectsPage from '../pages/projects-page';
+import { ProjectDetailPage } from '../pages/project-detail/project-detail-page';
 
 function AppRoutes() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        <Route index element={<HealthPage />} />
-        <Route path="*" element={<HealthPage />} />
+        <Route index element={<Navigate to="/projects" replace />} />
+        <Route path="projects" element={<ProjectsPage />} />
+        <Route path="projects/:projectId" element={<ProjectDetailPage />} />
+        <Route path="*" element={<Navigate to="/projects" replace />} />
       </Route>
     </Routes>
   );

@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, type QueryResultRow } from 'pg';
 import { env } from '../config/env.js';
 
 if (!env.databaseUrl) {
@@ -15,4 +15,7 @@ pool.on('error', (error) => {
 
 export const getClient = () => pool.connect();
 
-export const query = (text: string, params?: unknown[]) => pool.query(text, params);
+export const query = <T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: unknown[]
+) => pool.query<T>(text, params);
