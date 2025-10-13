@@ -183,3 +183,21 @@ export const parseItemStatusFilter = (
   }
   return value as 'active' | 'rejected';
 };
+
+export interface ItemImportPayload {
+  url: string;
+}
+
+export const parseItemImportPayload = (payload: unknown): ItemImportPayload => {
+  if (payload === null || typeof payload !== 'object') {
+    throw new HttpError(400, 'Body must be an object');
+  }
+
+  const { url } = payload as Record<string, unknown>;
+
+  if (typeof url !== 'string' || url.trim().length === 0) {
+    throw new HttpError(400, 'url must be a non-empty string');
+  }
+
+  return { url: url.trim() };
+};

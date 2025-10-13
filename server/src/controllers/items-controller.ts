@@ -11,6 +11,7 @@ import { resolveUrlId } from './url-helpers.js';
 import { parsePaginationParams, parseUuid } from '../validation/common.js';
 import {
   parseItemCreatePayload,
+  parseItemImportPayload,
   parseItemStatusFilter,
   parseItemUpdatePayload
 } from '../validation/items.js';
@@ -119,4 +120,65 @@ export const deleteItem = async (req: Request, res: Response) => {
   }
 
   res.status(204).send();
+};
+
+export const importItemFromUrl = async (req: Request, res: Response) => {
+  await new Promise((resolve) => {
+    setTimeout(resolve, 1000);
+  })
+  const projectId = parseUuid(req.params.projectId, 'projectId');
+  // projectId is validated but not otherwise used for the mock response.
+  void projectId;
+
+  const { url } = parseItemImportPayload(req.body);
+  const loweredUrl = url.toLowerCase();
+
+  if (loweredUrl.includes('fail') || loweredUrl.includes('error')) {
+    throw new HttpError(
+      422,
+      'We could not read that URL. Please enter the item details manually.'
+    );
+  }
+
+  let hostname: string | null = null;
+  let lastPathSegment: string | null = null;
+  try {
+    const parsed = new URL(url);
+    hostname = parsed.hostname.replace(/^www\./, '');
+    const pathSegments = parsed.pathname.split('/').filter(Boolean);
+    if (pathSegments.length) {
+      lastPathSegment = pathSegments[pathSegments.length - 1];
+    }
+  } catch {
+    // non-standard URLs fall back to generic mock content
+  }
+
+  const manufacturerBase = hostname ? hostname.split('.')[0] : 'imported';
+  const manufacturer =
+    manufacturerBase.charAt(0).toUpperCase() + manufacturerBase.slice(1);
+
+  const cleanedSegment =
+    lastPathSegment?.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim() ?? 'Item';
+  const model = cleanedSegment.length ? cleanedSegment : 'Imported Item';
+
+  const attributes: Record<string, unknown> = {
+    originUrl: url,
+    importedAt: new Date().toISOString(),
+    condition: 'New',
+    availability: 'In stock',
+    dpi: 1200,
+  };
+
+  if (hostname) {
+    attributes.domain = hostname;
+  }
+
+  res.json({
+    data: {
+      manufacturer,
+      model,
+      note: null,
+      attributes
+    }
+  });
 };

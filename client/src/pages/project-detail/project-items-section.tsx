@@ -14,6 +14,7 @@ interface ProjectItemsSectionProps {
   onQuickUrlChange: (value: string) => void;
   onAddUrl: () => void;
   onAddManual: () => void;
+  isImportingFromUrl: boolean;
 }
 
 const formatAttributeValue = (value: unknown): string => {
@@ -178,7 +179,8 @@ export function ProjectItemsSection({
   quickError,
   onQuickUrlChange,
   onAddUrl,
-  onAddManual
+  onAddManual,
+  isImportingFromUrl
 }: ProjectItemsSectionProps) {
   const baseColumnCount = 2; // Item, Prices (status indicator lives inside item cell)
   const [showDifferencesOnly, setShowDifferencesOnly] = useState(false);
@@ -473,7 +475,7 @@ export function ProjectItemsSection({
 
       <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-6">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Quick Add Item
+          Add Item
         </h3>
         <p className="mt-2 text-sm text-slate-500">
           Paste a product link to pre-fill details or switch to manual entry.
@@ -500,9 +502,36 @@ export function ProjectItemsSection({
             <button
               type="button"
               onClick={onAddUrl}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+              disabled={isImportingFromUrl}
+              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
             >
-              Add from URL
+              {isImportingFromUrl ? (
+                <>
+                  <svg
+                    aria-hidden="true"
+                    className="h-4 w-4 animate-spin text-white"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                    />
+                  </svg>
+                  Importing…
+                </>
+              ) : (
+                'Add from URL'
+              )}
             </button>
             <button
               type="button"

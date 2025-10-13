@@ -83,6 +83,13 @@ interface SingleItemResponse {
   data: Item;
 }
 
+export interface ImportedItemData {
+  manufacturer: string | null;
+  model: string | null;
+  note: string | null;
+  attributes: Record<string, unknown>;
+}
+
 export const createItem = async (
   projectId: string,
   payload: CreateItemPayload
@@ -100,6 +107,25 @@ export const createItem = async (
         sourceUrl: payload.sourceUrl ?? null,
         sourceUrlId: payload.sourceUrlId ?? null
       }
+    }
+  );
+
+  return response.data;
+};
+
+interface ImportItemResponse {
+  data: ImportedItemData;
+}
+
+export const importItemFromUrl = async (
+  projectId: string,
+  url: string
+): Promise<ImportedItemData> => {
+  const response = await apiFetch<ImportItemResponse>(
+    `/projects/${projectId}/items/import`,
+    {
+      method: 'POST',
+      body: { url }
     }
   );
 

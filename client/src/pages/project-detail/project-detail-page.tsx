@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   useCreateItemMutation,
@@ -6,6 +6,7 @@ import {
   useProjectQuery,
   useUpdateProjectMutation
 } from '../../query/projects';
+import { importItemFromUrl, type ImportedItemData } from '../../api/items';
 import { ItemFormModal } from '../../components/item-form-modal';
 import { ProjectHeader } from './project-header';
 import { ProjectDescriptionSection } from './project-description-section';
@@ -25,6 +26,10 @@ export function ProjectDetailPage() {
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [itemModalMode, setItemModalMode] = useState<'url' | 'manual'>('manual');
   const [modalInitialUrl, setModalInitialUrl] = useState<string | null>(null);
+  const [importedItemData, setImportedItemData] = useState<ImportedItemData | null>(null);
+  const [isImportingItem, setIsImportingItem] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importRequestIdRef = useRef(0);
 
   const project = projectQuery.data;
   const items = useMemo(() => itemsQuery.data?.data ?? [], [itemsQuery.data]);
@@ -58,24 +63,71 @@ export function ProjectDetailPage() {
     setIsItemModalOpen(true);
   };
 
-  const handleAddUrlClick = () => {
+  const handleAddUrlClick = async () => {
+    if (isImportingItem) {
+      return;
+    }
+
     const trimmed = quickUrl.trim();
     if (!trimmed) {
       setQuickError('Enter a URL to import item details.');
       return;
     }
+
+    if (!projectId) {
+      setQuickError('Project identifier is missing. Reload the page and try again.');
+      return;
+    }
+
     setQuickError(null);
+    setImportError(null);
+    setImportedItemData(null);
+
+    const requestId = importRequestIdRef.current + 1;
+    importRequestIdRef.current = requestId;
+
     openItemModal('url', trimmed);
+    setIsImportingItem(true);
+
+    try {
+      const data = await importItemFromUrl(projectId, trimmed);
+      if (importRequestIdRef.current !== requestId) {
+        return;
+      }
+      setImportedItemData(data);
+    } catch (error) {
+      if (importRequestIdRef.current !== requestId) {
+        return;
+      }
+      const message =
+        error instanceof Error && error.message.trim().length
+          ? error.message.trim()
+          : 'We could not load that URL.';
+      const normalizedMessage = message.endsWith('.') ? message : `${message}.`;
+      setImportError(`${normalizedMessage} You can fill in the details manually.`);
+    } finally {
+      if (importRequestIdRef.current === requestId) {
+        setIsImportingItem(false);
+      }
+    }
   };
 
   const handleAddManualClick = () => {
     setQuickError(null);
+    setImportError(null);
+    setImportedItemData(null);
+    setIsImportingItem(false);
+    importRequestIdRef.current += 1;
     openItemModal('manual', quickUrl.trim() || null);
   };
 
   const handleModalClose = () => {
     setIsItemModalOpen(false);
     setQuickError(null);
+    setImportError(null);
+    setImportedItemData(null);
+    setIsImportingItem(false);
+    importRequestIdRef.current += 1;
   };
 
   const handleModalSuccess = () => {
@@ -84,6 +136,10 @@ export function ProjectDetailPage() {
     }
     setQuickError(null);
     setIsItemModalOpen(false);
+    setImportError(null);
+    setImportedItemData(null);
+    setIsImportingItem(false);
+    importRequestIdRef.current += 1;
   };
 
   const handleDescriptionUpdate = async (description: string | null) => {
@@ -154,6 +210,7 @@ export function ProjectDetailPage() {
         onQuickUrlChange={handleQuickUrlChange}
         onAddUrl={handleAddUrlClick}
         onAddManual={handleAddManualClick}
+        isImportingFromUrl={isImportingItem}
       />
 
       <ItemFormModal
@@ -165,6 +222,9 @@ export function ProjectDetailPage() {
         onSubmit={createItemMutation.mutateAsync}
         isSubmitting={createItemMutation.isPending}
         projectAttributes={projectAttributes}
+        initialData={itemModalMode === 'url' ? importedItemData : null}
+        isInitialDataLoading={itemModalMode === 'url' ? isImportingItem : false}
+        initialDataError={itemModalMode === 'url' ? importError : null}
       />
     </div>
   );

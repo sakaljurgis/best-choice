@@ -3,6 +3,7 @@ import {
   createItem,
   deleteItem,
   getItem,
+  importItemFromUrl,
   listItems,
   updateItem
 } from '../controllers/items-controller.js';
@@ -33,6 +34,7 @@ apiRouter.delete('/projects/:projectId', asyncHandler(deleteProject));
 
 // Project items
 apiRouter.get('/projects/:projectId/items', asyncHandler(listItems));
+apiRouter.post('/projects/:projectId/items/import', asyncHandler(importItemFromUrl));
 apiRouter.post('/projects/:projectId/items', asyncHandler(createItem));
 
 // Items
