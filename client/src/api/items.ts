@@ -88,6 +88,7 @@ export interface ImportedItemData {
   model: string | null;
   note: string | null;
   attributes: Record<string, unknown>;
+  sourceUrl?: string | null;
 }
 
 export const createItem = async (
@@ -128,6 +129,58 @@ export const importItemFromUrl = async (
       body: { url }
     }
   );
+
+  return response.data;
+};
+
+export interface UpdateItemPayload {
+  manufacturer?: string | null;
+  model?: string;
+  status?: ItemStatus;
+  note?: string | null;
+  attributes?: Record<string, unknown>;
+  sourceUrl?: string | null;
+  sourceUrlId?: string | null;
+}
+
+export const updateItem = async (
+  itemId: string,
+  payload: UpdateItemPayload
+): Promise<Item> => {
+  const body: Record<string, unknown> = {};
+
+  if ('manufacturer' in payload) {
+    body.manufacturer = payload.manufacturer ?? null;
+  }
+
+  if ('model' in payload) {
+    body.model = payload.model;
+  }
+
+  if ('status' in payload) {
+    body.status = payload.status;
+  }
+
+  if ('note' in payload) {
+    body.note = payload.note ?? null;
+  }
+
+  if ('attributes' in payload) {
+    body.attributes = payload.attributes ?? {};
+  }
+
+  if ('sourceUrl' in payload) {
+    body.sourceUrl = payload.sourceUrl ?? null;
+  }
+
+  if ('sourceUrlId' in payload) {
+    body.sourceUrlId = payload.sourceUrlId ?? null;
+  }
+
+  const response = await apiFetch<SingleItemResponse>(`/items/${itemId}`, {
+    method: 'PATCH',
+    body
+  });
 
   return response.data;
 };

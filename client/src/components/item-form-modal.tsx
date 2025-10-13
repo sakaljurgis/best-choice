@@ -3,7 +3,7 @@ import type { CreateItemPayload, ImportedItemData } from '../api/items';
 
 export interface ItemFormModalProps {
   isOpen: boolean;
-  mode: 'url' | 'manual';
+  mode: 'url' | 'manual' | 'edit';
   initialUrl: string | null;
   onClose: () => void;
   onSuccess: () => void;
@@ -67,7 +67,8 @@ export function ItemFormModal({
     }
 
     setError(null);
-    setSourceUrl(initialUrl ?? '');
+    const resolvedSourceUrl = initialData?.sourceUrl ?? initialUrl ?? '';
+    setSourceUrl(resolvedSourceUrl);
     setManufacturer(initialData?.manufacturer ?? '');
     setModel(initialData?.model ?? '');
     setNote(initialData?.note ?? '');
@@ -160,14 +161,19 @@ export function ItemFormModal({
     }
 
     try {
-      await onSubmit({
+      const payload: CreateItemPayload = {
         manufacturer: manufacturer.trim() ? manufacturer.trim() : null,
         model: model.trim(),
-        status: 'active',
         note: note.trim() ? note.trim() : null,
         attributes: attributesPayload,
         sourceUrl: sourceUrl.trim() ? sourceUrl.trim() : null
-      });
+      };
+
+      if (mode !== 'edit') {
+        payload.status = 'active';
+      }
+
+      await onSubmit(payload);
       onSuccess();
     } catch (submitError) {
       setError((submitError as Error).message);
@@ -201,12 +207,18 @@ export function ItemFormModal({
         <div className="flex-1 overflow-y-auto px-8 py-6">
           <header className="mb-6">
             <h2 className="text-xl font-semibold text-slate-900">
-              {mode === 'url' ? 'Review Item Details' : 'Add Item Manually'}
+              {mode === 'url'
+                ? 'Review Item Details'
+                : mode === 'edit'
+                  ? 'Edit Item'
+                  : 'Add Item Manually'}
             </h2>
             <p className="text-sm text-slate-500">
               {mode === 'url'
                 ? 'Double-check the imported information and fill in any gaps.'
-                : 'Provide the specs and notes for this item.'}
+                : mode === 'edit'
+                  ? 'Update this item with the latest information.'
+                  : 'Provide the specs and notes for this item.'}
             </p>
           </header>
 
@@ -249,7 +261,7 @@ export function ItemFormModal({
           >
             <div className="flex flex-col gap-2 md:col-span-2">
               <label className="text-sm font-medium text-slate-700" htmlFor="modal-item-source-url">
-                Source URL {mode === 'manual' ? '(optional)' : ''}
+                Source URL {mode === 'url' ? '' : '(optional)'}
               </label>
               <input
                 id="modal-item-source-url"

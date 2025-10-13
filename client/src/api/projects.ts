@@ -111,9 +111,31 @@ export const updateProject = async (
   projectId: string,
   payload: UpdateProjectPayload
 ): Promise<Project> => {
+  const body: Record<string, unknown> = {};
+
+  if (payload.name !== undefined) {
+    body.name = payload.name;
+  }
+
+  if (payload.description !== undefined) {
+    body.description = payload.description ?? null;
+  }
+
+  if (payload.status !== undefined) {
+    body.status = payload.status;
+  }
+
+  if (payload.attributes !== undefined) {
+    body.attributes = payload.attributes;
+  }
+
+  if (payload.priorityRules !== undefined) {
+    body.priorityRules = payload.priorityRules;
+  }
+
   const response = await apiFetch<SingleProjectResponse>(`/projects/${projectId}`, {
     method: 'PATCH',
-    body: payload
+    body
   });
 
   return response.data;

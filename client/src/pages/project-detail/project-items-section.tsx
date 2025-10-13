@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { ExternalLink, Pencil } from 'lucide-react';
 import type { Item } from '../../api/items';
 import { ItemPricesPanel } from './item-prices-panel';
 
@@ -15,6 +16,7 @@ interface ProjectItemsSectionProps {
   onAddUrl: () => void;
   onAddManual: () => void;
   isImportingFromUrl: boolean;
+  onEditItem: (item: Item) => void;
 }
 
 const formatAttributeValue = (value: unknown): string => {
@@ -180,7 +182,8 @@ export function ProjectItemsSection({
   onQuickUrlChange,
   onAddUrl,
   onAddManual,
-  isImportingFromUrl
+  isImportingFromUrl,
+  onEditItem
 }: ProjectItemsSectionProps) {
   const baseColumnCount = 2; // Item, Prices (status indicator lives inside item cell)
   const [showDifferencesOnly, setShowDifferencesOnly] = useState(false);
@@ -309,29 +312,38 @@ export function ProjectItemsSection({
                       <tr className="hover:bg-slate-50">
                         <td className="px-4 py-3 align-top">
                           <div className="flex flex-col gap-1">
-                            <span className="inline-flex items-center gap-2 text-slate-900">
-                              <span
-                                aria-hidden
-                                className={`inline-block h-2.5 w-2.5 rounded-full ${
-                                  item.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
-                                }`}
-                              />
-                              <span className="font-semibold">
-                                {item.manufacturer ? `${item.manufacturer} ${item.model}` : item.model}
-                              </span>
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => onEditItem(item)}
+                                className="group inline-flex items-center gap-2 rounded-md text-left text-slate-900 transition hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                                title="Edit item details"
+                              >
+                                <span
+                                  aria-hidden
+                                  className={`inline-block h-2.5 w-2.5 rounded-full ${
+                                    item.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
+                                  }`}
+                                />
+                                <span className="font-semibold group-hover:underline">
+                                  {item.manufacturer ? `${item.manufacturer} ${item.model}` : item.model}
+                                </span>
+                              </button>
+                              {item.sourceUrl ? (
+                                <a
+                                  href={item.sourceUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-blue-200 text-blue-600 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                                  title="Open source link"
+                                >
+                                  <ExternalLink aria-hidden className="h-4 w-4" />
+                                  <span className="sr-only">Open source link</span>
+                                </a>
+                              ) : null}
+                            </div>
                             {item.note ? (
                               <span className="text-xs text-slate-500">{item.note}</span>
-                            ) : null}
-                            {item.sourceUrl ? (
-                              <a
-                                href={item.sourceUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-xs font-medium text-blue-600 hover:text-blue-700"
-                              >
-                                View source
-                              </a>
                             ) : null}
                           </div>
                         </td>
@@ -357,19 +369,7 @@ export function ProjectItemsSection({
                               aria-label={priceButtonLabel}
                               title={priceButtonLabel}
                             >
-                              <svg
-                                aria-hidden="true"
-                                className="h-4 w-4"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                              >
-                                <path d="M14.243 2.929a2 2 0 00-2.828 0L4 10.344V13h2.656l7.415-7.414a2 2 0 000-2.828z" />
-                                <path
-                                  fillRule="evenodd"
-                                  d="M3.25 15a1.75 1.75 0 001.75 1.75h10A1.75 1.75 0 0016.75 15v-4a.75.75 0 00-1.5 0v4a.25.25 0 01-.25.25h-10a.25.25 0 01-.25-.25v-10a.25.25 0 01.25-.25h4a.75.75 0 000-1.5h-4A1.75 1.75 0 003.25 5v10z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
+                              <Pencil aria-hidden className="h-5 w-5 text-slate-400 transition hover:text-blue-600" />
                               <span className="sr-only">{priceButtonLabel}</span>
                             </button>
                           </div>
@@ -399,32 +399,39 @@ export function ProjectItemsSection({
 
             return (
               <div key={item.id} className="rounded-xl border border-slate-200 p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onEditItem(item)}
+                    className="group flex flex-1 items-center gap-2 text-left text-slate-900 transition hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                    title="Edit item details"
+                  >
                     <span
                       aria-hidden
                       className={`inline-block h-2.5 w-2.5 rounded-full ${
                         item.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
                       }`}
                     />
-                    <h3 className="text-lg font-semibold text-slate-900">
+                    <span className="text-lg font-semibold group-hover:underline">
                       {item.manufacturer ? `${item.manufacturer} ${item.model}` : item.model}
-                    </h3>
-                  </div>
+                    </span>
+                  </button>
+                  {item.sourceUrl ? (
+                    <a
+                      href={item.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-blue-200 text-blue-600 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                      title="Open source link"
+                    >
+                      <ExternalLink aria-hidden className="h-5 w-5" />
+                      <span className="sr-only">Open source link</span>
+                    </a>
+                  ) : null}
                 </div>
 
                 {item.note ? (
                   <p className="mt-1 text-sm text-slate-600">Note: {item.note}</p>
-                ) : null}
-                {item.sourceUrl ? (
-                  <a
-                    href={item.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 inline-flex text-xs font-medium text-blue-600 hover:text-blue-700"
-                  >
-                    View source
-                  </a>
                 ) : null}
 
                 <div className="mt-3 space-y-2">
@@ -450,14 +457,7 @@ export function ProjectItemsSection({
                   onClick={() => onToggleItem(item.id)}
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-blue-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-blue-600 transition hover:bg-blue-50"
                 >
-                  <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M14.243 2.929a2 2 0 00-2.828 0L4 10.344V13h2.656l7.415-7.414a2 2 0 000-2.828z" />
-                    <path
-                      fillRule="evenodd"
-                      d="M3.25 15a1.75 1.75 0 001.75 1.75h10A1.75 1.75 0 0016.75 15v-4a.75.75 0 00-1.5 0v4a.25.25 0 01-.25.25h-10a.25.25 0 01-.25-.25v-10a.25.25 0 01.25-.25h4a.75.75 0 000-1.5h-4A1.75 1.75 0 003.25 5v10z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                  <Pencil aria-hidden className="h-5 w-5 text-slate-400 transition hover:text-blue-600" />
                   {priceButtonLabel}
                 </button>
 

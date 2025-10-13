@@ -2,11 +2,18 @@ import { useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   useCreateItemMutation,
+  useUpdateItemMutation,
   useProjectItemsQuery,
   useProjectQuery,
   useUpdateProjectMutation
 } from '../../query/projects';
-import { importItemFromUrl, type ImportedItemData } from '../../api/items';
+import {
+  importItemFromUrl,
+  type CreateItemPayload,
+  type ImportedItemData,
+  type Item,
+  type UpdateItemPayload
+} from '../../api/items';
 import { ItemFormModal } from '../../components/item-form-modal';
 import { ProjectHeader } from './project-header';
 import { ProjectDescriptionSection } from './project-description-section';
@@ -18,18 +25,20 @@ export function ProjectDetailPage() {
   const projectQuery = useProjectQuery(projectId);
   const itemsQuery = useProjectItemsQuery(projectId);
   const createItemMutation = useCreateItemMutation(projectId);
+  const updateItemMutation = useUpdateItemMutation(projectId);
   const updateProjectMutation = useUpdateProjectMutation(projectId);
 
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [quickUrl, setQuickUrl] = useState('');
   const [quickError, setQuickError] = useState<string | null>(null);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
-  const [itemModalMode, setItemModalMode] = useState<'url' | 'manual'>('manual');
+  const [itemModalMode, setItemModalMode] = useState<'url' | 'manual' | 'edit'>('manual');
   const [modalInitialUrl, setModalInitialUrl] = useState<string | null>(null);
   const [importedItemData, setImportedItemData] = useState<ImportedItemData | null>(null);
   const [isImportingItem, setIsImportingItem] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const importRequestIdRef = useRef(0);
+  const [itemBeingEdited, setItemBeingEdited] = useState<Item | null>(null);
 
   const project = projectQuery.data;
   const items = useMemo(() => itemsQuery.data?.data ?? [], [itemsQuery.data]);
@@ -57,7 +66,7 @@ export function ProjectDetailPage() {
     return Array.from(attributeSet);
   }, [projectAttributes, items]);
 
-  const openItemModal = (mode: 'url' | 'manual', initialUrl: string | null) => {
+  const openItemModal = (mode: 'url' | 'manual' | 'edit', initialUrl: string | null) => {
     setItemModalMode(mode);
     setModalInitialUrl(initialUrl);
     setIsItemModalOpen(true);
@@ -67,6 +76,8 @@ export function ProjectDetailPage() {
     if (isImportingItem) {
       return;
     }
+
+    setItemBeingEdited(null);
 
     const trimmed = quickUrl.trim();
     if (!trimmed) {
@@ -82,6 +93,7 @@ export function ProjectDetailPage() {
     setQuickError(null);
     setImportError(null);
     setImportedItemData(null);
+    setItemBeingEdited(null);
 
     const requestId = importRequestIdRef.current + 1;
     importRequestIdRef.current = requestId;
@@ -118,7 +130,18 @@ export function ProjectDetailPage() {
     setImportedItemData(null);
     setIsImportingItem(false);
     importRequestIdRef.current += 1;
+    setItemBeingEdited(null);
     openItemModal('manual', quickUrl.trim() || null);
+  };
+
+  const handleEditItem = (item: Item) => {
+    setQuickError(null);
+    setImportError(null);
+    setImportedItemData(null);
+    setIsImportingItem(false);
+    importRequestIdRef.current += 1;
+    setItemBeingEdited(item);
+    openItemModal('edit', item.sourceUrl ?? null);
   };
 
   const handleModalClose = () => {
@@ -128,6 +151,7 @@ export function ProjectDetailPage() {
     setImportedItemData(null);
     setIsImportingItem(false);
     importRequestIdRef.current += 1;
+    setItemBeingEdited(null);
   };
 
   const handleModalSuccess = () => {
@@ -140,6 +164,7 @@ export function ProjectDetailPage() {
     setImportedItemData(null);
     setIsImportingItem(false);
     importRequestIdRef.current += 1;
+    setItemBeingEdited(null);
   };
 
   const handleDescriptionUpdate = async (description: string | null) => {
@@ -148,6 +173,26 @@ export function ProjectDetailPage() {
 
   const handleAttributesUpdate = async (attributes: string[]) => {
     await updateProjectMutation.mutateAsync({ attributes });
+  };
+
+  const handleUpdateItemSubmit = (payload: CreateItemPayload) => {
+    if (!itemBeingEdited) {
+      return Promise.reject(new Error('No item selected for editing'));
+    }
+
+    const updatePayload: UpdateItemPayload = {
+      manufacturer: payload.manufacturer,
+      model: payload.model,
+      note: payload.note,
+      attributes: payload.attributes,
+      sourceUrl: payload.sourceUrl,
+      sourceUrlId: payload.sourceUrlId
+    };
+
+    return updateItemMutation.mutateAsync({
+      itemId: itemBeingEdited.id,
+      payload: updatePayload
+    });
   };
 
   if (!projectId) {
@@ -176,6 +221,31 @@ export function ProjectDetailPage() {
   const toggleItemExpansion = (itemId: string) => {
     setExpandedItemId((current) => (current === itemId ? null : itemId));
   };
+
+  const modalInitialData =
+    itemModalMode === 'url'
+      ? importedItemData
+      : itemModalMode === 'edit' && itemBeingEdited
+        ? {
+            manufacturer: itemBeingEdited.manufacturer,
+            model: itemBeingEdited.model,
+            note: itemBeingEdited.note,
+            attributes: itemBeingEdited.attributes ?? {},
+            sourceUrl: itemBeingEdited.sourceUrl ?? null
+          }
+        : null;
+
+  const itemModalSubmit =
+    itemModalMode === 'edit' ? handleUpdateItemSubmit : createItemMutation.mutateAsync;
+
+  const itemModalIsSubmitting = itemModalMode === 'edit'
+    ? updateItemMutation.isPending
+    : createItemMutation.isPending;
+
+  const itemModalInitialDataLoading =
+    itemModalMode === 'url' ? isImportingItem : false;
+
+  const itemModalInitialDataError = itemModalMode === 'url' ? importError : null;
 
   return (
     <div className="flex flex-col gap-10">
@@ -211,6 +281,7 @@ export function ProjectDetailPage() {
         onAddUrl={handleAddUrlClick}
         onAddManual={handleAddManualClick}
         isImportingFromUrl={isImportingItem}
+        onEditItem={handleEditItem}
       />
 
       <ItemFormModal
@@ -219,12 +290,12 @@ export function ProjectDetailPage() {
         initialUrl={modalInitialUrl}
         onClose={handleModalClose}
         onSuccess={handleModalSuccess}
-        onSubmit={createItemMutation.mutateAsync}
-        isSubmitting={createItemMutation.isPending}
+        onSubmit={itemModalSubmit}
+        isSubmitting={itemModalIsSubmitting}
         projectAttributes={projectAttributes}
-        initialData={itemModalMode === 'url' ? importedItemData : null}
-        isInitialDataLoading={itemModalMode === 'url' ? isImportingItem : false}
-        initialDataError={itemModalMode === 'url' ? importError : null}
+        initialData={modalInitialData}
+        isInitialDataLoading={itemModalInitialDataLoading}
+        initialDataError={itemModalInitialDataError}
       />
     </div>
   );

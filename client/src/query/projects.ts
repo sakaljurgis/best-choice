@@ -11,8 +11,10 @@ import {
 import {
   createItem,
   fetchProjectItems,
+  updateItem,
   type CreateItemPayload,
-  type ProjectItemsResponse
+  type ProjectItemsResponse,
+  type UpdateItemPayload
 } from '../api/items';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -89,6 +91,22 @@ export const useCreateItemMutation = (projectId: string | undefined) => {
       }
       return createItem(projectId, payload);
     },
+    onSuccess: () => {
+      if (!projectId) {
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: projectsKeys.items(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectsKeys.detail(projectId) });
+    }
+  });
+};
+
+export const useUpdateItemMutation = (projectId: string | undefined) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ itemId, payload }: { itemId: string; payload: UpdateItemPayload }) =>
+      updateItem(itemId, payload),
     onSuccess: () => {
       if (!projectId) {
         return;
