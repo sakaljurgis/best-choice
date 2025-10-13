@@ -1,15 +1,12 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, Pencil } from 'lucide-react';
 import type { Item } from '../../api/items';
-import { ItemPricesPanel } from './item-prices-panel';
 
 interface ProjectItemsSectionProps {
   items: Item[];
   isLoading: boolean;
   error: Error | null;
   projectAttributes: string[];
-  expandedItemId: string | null;
-  onToggleItem: (itemId: string) => void;
   quickUrl: string;
   quickError: string | null;
   onQuickUrlChange: (value: string) => void;
@@ -17,6 +14,7 @@ interface ProjectItemsSectionProps {
   onAddManual: () => void;
   isImportingFromUrl: boolean;
   onEditItem: (item: Item) => void;
+  onEditPrices: (item: Item) => void;
 }
 
 const formatAttributeValue = (value: unknown): string => {
@@ -145,29 +143,106 @@ const getPriceSummaryDisplay = (
     return { primary: '—', secondary: null };
   }
 
-  if (summary.hasMixedCurrency) {
-    const countLabel = `${summary.priceCount} price${summary.priceCount === 1 ? '' : 's'}`;
-    return {
-      primary: countLabel,
-      secondary: 'Multiple currencies'
-    };
-  }
-
-  const formattedMin = formatPriceAmount(summary.minAmount, summary.currency);
-
-  if (summary.priceCount === 1 || summary.minAmount === summary.maxAmount) {
-    return {
-      primary: formattedMin,
-      secondary: summary.priceCount > 1 ? `${summary.priceCount} prices` : null
-    };
-  }
-
-  const formattedMax = formatPriceAmount(summary.maxAmount, summary.currency);
-
-  return {
-    primary: `${formattedMin} – ${formattedMax}`,
-    secondary: `${summary.priceCount} prices`
+  const resolveCurrency = (preferred: string | null) => preferred ?? summary.currency ?? null;
+  const formatConditionPrice = (
+    amount: number | null,
+    condition: 'new' | 'used',
+    useFrom: boolean,
+    currency: string | null,
+    isMixed: boolean
+  ): string | null => {
+    if (amount === null || isMixed) {
+      return null;
+    }
+    const resolvedCurrency = resolveCurrency(currency);
+    const formatted = formatPriceAmount(amount, resolvedCurrency);
+    const prefix = useFrom ? 'from ' : '';
+    return `${prefix}${formatted} ${condition}`;
   };
+
+  const hasMultiplePrices = summary.priceCount > 1;
+  const hasNewPrices =
+    summary.newCount > 0 && summary.newMinAmount !== null && !summary.newHasMixedCurrency;
+  const hasUsedPrices =
+    summary.usedCount > 0 && summary.usedMinAmount !== null && !summary.usedHasMixedCurrency;
+
+  if (summary.priceCount === 1) {
+    if (hasNewPrices) {
+      const label = formatConditionPrice(
+        summary.newMinAmount,
+        'new',
+        false,
+        summary.newCurrency,
+        summary.newHasMixedCurrency
+      );
+      if (label) {
+        return { primary: label, secondary: null };
+      }
+    }
+    if (hasUsedPrices) {
+      const label = formatConditionPrice(
+        summary.usedMinAmount,
+        'used',
+        false,
+        summary.usedCurrency,
+        summary.usedHasMixedCurrency
+      );
+      if (label) {
+        return { primary: label, secondary: null };
+      }
+    }
+    return { primary: formatPriceAmount(summary.minAmount, summary.currency), secondary: null };
+  }
+
+  if (hasMultiplePrices) {
+    const parts: string[] = [];
+
+    if (hasNewPrices) {
+      const label = formatConditionPrice(
+        summary.newMinAmount,
+        'new',
+        true,
+        summary.newCurrency,
+        summary.newHasMixedCurrency
+      );
+      if (label) {
+        parts.push(label);
+      }
+    }
+
+    if (hasUsedPrices) {
+      const label = formatConditionPrice(
+        summary.usedMinAmount,
+        'used',
+        true,
+        summary.usedCurrency,
+        summary.usedHasMixedCurrency
+      );
+      if (label) {
+        parts.push(label);
+      }
+    }
+
+    if (parts.length === 1) {
+      return { primary: parts[0], secondary: null };
+    }
+    if (parts.length >= 2) {
+      return { primary: parts[0], secondary: parts[1] };
+    }
+
+    if (!summary.hasMixedCurrency) {
+      const formattedMin = formatPriceAmount(summary.minAmount, summary.currency);
+      const formattedMax = formatPriceAmount(summary.maxAmount, summary.currency);
+      if (summary.minAmount === summary.maxAmount) {
+        return { primary: formattedMin, secondary: null };
+      }
+      return { primary: `from ${formattedMin}`, secondary: `up to ${formattedMax}` };
+    }
+
+    return { primary: 'Multiple currencies', secondary: null };
+  }
+
+  return { primary: formatPriceAmount(summary.minAmount, summary.currency), secondary: null };
 };
 
 export function ProjectItemsSection({
@@ -175,17 +250,15 @@ export function ProjectItemsSection({
   isLoading,
   error,
   projectAttributes,
-  expandedItemId,
-  onToggleItem,
   quickUrl,
   quickError,
   onQuickUrlChange,
   onAddUrl,
   onAddManual,
   isImportingFromUrl,
-  onEditItem
+  onEditItem,
+  onEditPrices
 }: ProjectItemsSectionProps) {
-  const baseColumnCount = 2; // Item, Prices (status indicator lives inside item cell)
   const [showDifferencesOnly, setShowDifferencesOnly] = useState(false);
 
   const mismatchedAttributes = useMemo(() => {
@@ -238,7 +311,6 @@ export function ProjectItemsSection({
     return projectAttributes.filter((attribute) => mismatchedAttributes.has(attribute));
   }, [showDifferencesOnly, projectAttributes, mismatchedAttributes]);
 
-  const totalColumns = baseColumnCount + visibleAttributes.length;
   const hasAttributeDifferences = mismatchedAttributes.size > 0;
   const showNoDifferencesMessage =
     !hasAttributeDifferences && projectAttributes.length > 0 && items.length > 1;
@@ -302,87 +374,76 @@ export function ProjectItemsSection({
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {items.map((item) => {
-                  const isExpanded = expandedItemId === item.id;
                   const attributes = (item.attributes ?? {}) as Record<string, unknown>;
                   const priceDisplay = getPriceSummaryDisplay(item.priceSummary);
-                  const priceButtonLabel = isExpanded ? 'Hide Prices' : 'Edit Prices';
 
                   return (
-                    <Fragment key={item.id}>
-                      <tr className="hover:bg-slate-50">
-                        <td className="px-4 py-3 align-top">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => onEditItem(item)}
-                                className="group inline-flex items-center gap-2 rounded-md text-left text-slate-900 transition hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                                title="Edit item details"
-                              >
-                                <span
-                                  aria-hidden
-                                  className={`inline-block h-2.5 w-2.5 rounded-full ${
-                                    item.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
-                                  }`}
-                                />
-                                <span className="font-semibold group-hover:underline">
-                                  {item.manufacturer ? `${item.manufacturer} ${item.model}` : item.model}
-                                </span>
-                              </button>
-                              {item.sourceUrl ? (
-                                <a
-                                  href={item.sourceUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-blue-200 text-blue-600 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                                  title="Open source link"
-                                >
-                                  <ExternalLink aria-hidden className="h-4 w-4" />
-                                  <span className="sr-only">Open source link</span>
-                                </a>
-                              ) : null}
-                            </div>
-                            {item.note ? (
-                              <span className="text-xs text-slate-500">{item.note}</span>
-                            ) : null}
-                          </div>
-                        </td>
-                        {visibleAttributes.map((attribute) => (
-                          <td key={attribute} className="px-4 py-3 align-top text-xs text-slate-600">
-                            {formatAttributeValue(attributes[attribute])}
-                          </td>
-                        ))}
-                        <td className="px-4 py-3 align-top">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex flex-col gap-0.5 text-xs">
-                              <span className="text-sm font-semibold text-slate-900">
-                                {priceDisplay.primary}
-                              </span>
-                              {priceDisplay.secondary ? (
-                                <span className="text-slate-500">{priceDisplay.secondary}</span>
-                              ) : null}
-                            </div>
+                    <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 align-top">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => onToggleItem(item.id)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-blue-200 text-blue-600 transition hover:bg-blue-50"
-                              aria-label={priceButtonLabel}
-                              title={priceButtonLabel}
+                              onClick={() => onEditItem(item)}
+                              className="group inline-flex items-center gap-2 rounded-md text-left text-slate-900 transition hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                              title="Edit item details"
                             >
-                              <Pencil aria-hidden className="h-5 w-5 text-slate-400 transition hover:text-blue-600" />
-                              <span className="sr-only">{priceButtonLabel}</span>
+                              <span
+                                aria-hidden
+                                className={`inline-block h-2.5 w-2.5 rounded-full ${
+                                  item.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
+                                }`}
+                              />
+                              <span className="font-semibold group-hover:underline">
+                                {item.manufacturer ? `${item.manufacturer} ${item.model}` : item.model}
+                              </span>
                             </button>
+                            {item.sourceUrl ? (
+                              <a
+                                href={item.sourceUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-blue-200 text-blue-600 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                                title="Open source link"
+                              >
+                                <ExternalLink aria-hidden className="h-4 w-4" />
+                                <span className="sr-only">Open source link</span>
+                              </a>
+                            ) : null}
                           </div>
+                          {item.note ? (
+                            <span className="text-xs text-slate-500">{item.note}</span>
+                          ) : null}
+                        </div>
+                      </td>
+                      {visibleAttributes.map((attribute) => (
+                        <td key={attribute} className="px-4 py-3 align-top text-xs text-slate-600">
+                          {formatAttributeValue(attributes[attribute])}
                         </td>
-                      </tr>
-                      {isExpanded ? (
-                        <tr className="bg-slate-50">
-                          <td colSpan={totalColumns} className="px-4 py-5">
-                            <ItemPricesPanel itemId={item.id} />
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
+                      ))}
+                      <td className="px-4 py-3 align-top">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex flex-col gap-0.5 text-xs">
+                            <span className="text-sm font-semibold text-slate-900">
+                              {priceDisplay.primary}
+                            </span>
+                            {priceDisplay.secondary ? (
+                              <span className="text-slate-500">{priceDisplay.secondary}</span>
+                            ) : null}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => onEditPrices(item)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-blue-200 text-blue-600 transition hover:bg-blue-50"
+                            aria-label="Edit Prices"
+                            title="Edit Prices"
+                          >
+                            <Pencil aria-hidden className="h-5 w-5 text-slate-400 transition hover:text-blue-600" />
+                            <span className="sr-only">Edit Prices</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -392,10 +453,8 @@ export function ProjectItemsSection({
 
         <div className="space-y-4 md:hidden">
           {items.map((item) => {
-            const isExpanded = expandedItemId === item.id;
             const attributes = (item.attributes ?? {}) as Record<string, unknown>;
             const priceDisplay = getPriceSummaryDisplay(item.priceSummary);
-            const priceButtonLabel = isExpanded ? 'Hide Prices' : 'Edit Prices';
 
             return (
               <div key={item.id} className="rounded-xl border border-slate-200 p-4 shadow-sm">
@@ -454,18 +513,12 @@ export function ProjectItemsSection({
                 </div>
                 <button
                   type="button"
-                  onClick={() => onToggleItem(item.id)}
+                  onClick={() => onEditPrices(item)}
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-blue-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-blue-600 transition hover:bg-blue-50"
                 >
                   <Pencil aria-hidden className="h-5 w-5 text-slate-400 transition hover:text-blue-600" />
-                  {priceButtonLabel}
+                  Edit Prices
                 </button>
-
-                {isExpanded ? (
-                  <div className="mt-4">
-                    <ItemPricesPanel itemId={item.id} />
-                  </div>
-                ) : null}
               </div>
             );
           })}

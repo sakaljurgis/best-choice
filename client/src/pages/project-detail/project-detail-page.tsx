@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   useCreateItemMutation,
@@ -19,6 +19,7 @@ import { ProjectHeader } from './project-header';
 import { ProjectDescriptionSection } from './project-description-section';
 import { TrackedAttributesSection } from './tracked-attributes-section';
 import { ProjectItemsSection } from './project-items-section';
+import { ItemPricesModal } from './item-prices-modal';
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -28,7 +29,7 @@ export function ProjectDetailPage() {
   const updateItemMutation = useUpdateItemMutation(projectId);
   const updateProjectMutation = useUpdateProjectMutation(projectId);
 
-  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [priceModalItemId, setPriceModalItemId] = useState<string | null>(null);
   const [quickUrl, setQuickUrl] = useState('');
   const [quickError, setQuickError] = useState<string | null>(null);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -43,6 +44,16 @@ export function ProjectDetailPage() {
   const project = projectQuery.data;
   const items = useMemo(() => itemsQuery.data?.data ?? [], [itemsQuery.data]);
   const projectAttributes = useMemo(() => project?.attributes ?? [], [project]);
+  const priceModalItem = useMemo(
+    () => items.find((item) => item.id === priceModalItemId) ?? null,
+    [items, priceModalItemId]
+  );
+
+  useEffect(() => {
+    if (priceModalItemId && !priceModalItem) {
+      setPriceModalItemId(null);
+    }
+  }, [priceModalItemId, priceModalItem]);
 
   const availableAttributes = useMemo(() => {
     const attributeSet = new Set<string>();
@@ -218,8 +229,12 @@ export function ProjectDetailPage() {
     }
   };
 
-  const toggleItemExpansion = (itemId: string) => {
-    setExpandedItemId((current) => (current === itemId ? null : itemId));
+  const handleEditPrices = (item: Item) => {
+    setPriceModalItemId(item.id);
+  };
+
+  const handlePricesModalClose = () => {
+    setPriceModalItemId(null);
   };
 
   const modalInitialData =
@@ -273,8 +288,6 @@ export function ProjectDetailPage() {
         isLoading={itemsQuery.isLoading}
         error={itemsQuery.isError ? (itemsQuery.error as Error) : null}
         projectAttributes={projectAttributes}
-        expandedItemId={expandedItemId}
-        onToggleItem={toggleItemExpansion}
         quickUrl={quickUrl}
         quickError={quickError}
         onQuickUrlChange={handleQuickUrlChange}
@@ -282,6 +295,7 @@ export function ProjectDetailPage() {
         onAddManual={handleAddManualClick}
         isImportingFromUrl={isImportingItem}
         onEditItem={handleEditItem}
+        onEditPrices={handleEditPrices}
       />
 
       <ItemFormModal
@@ -296,6 +310,11 @@ export function ProjectDetailPage() {
         initialData={modalInitialData}
         isInitialDataLoading={itemModalInitialDataLoading}
         initialDataError={itemModalInitialDataError}
+      />
+      <ItemPricesModal
+        isOpen={Boolean(priceModalItem)}
+        item={priceModalItem}
+        onClose={handlePricesModalClose}
       />
     </div>
   );

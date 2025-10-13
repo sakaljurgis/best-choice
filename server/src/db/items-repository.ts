@@ -16,7 +16,15 @@ const itemColumns = `
   price_summary.max_amount AS price_max_amount,
   price_summary.total_count AS price_count,
   price_summary.currency AS price_currency,
-  price_summary.currency_count AS price_currency_count
+  price_summary.currency_count AS price_currency_count,
+  price_summary.min_new_amount AS price_min_new_amount,
+  price_summary.new_count AS price_new_count,
+  price_summary.new_currency AS price_new_currency,
+  price_summary.new_currency_count AS price_new_currency_count,
+  price_summary.min_used_amount AS price_min_used_amount,
+  price_summary.used_count AS price_used_count,
+  price_summary.used_currency AS price_used_currency,
+  price_summary.used_currency_count AS price_used_currency_count
 `;
 
 export interface ItemRow {
@@ -36,6 +44,14 @@ export interface ItemRow {
   price_count: number | null;
   price_currency: string | null;
   price_currency_count: number | null;
+  price_min_new_amount: string | null;
+  price_new_count: number | null;
+  price_new_currency: string | null;
+  price_new_currency_count: number | null;
+  price_min_used_amount: string | null;
+  price_used_count: number | null;
+  price_used_currency: string | null;
+  price_used_currency_count: number | null;
 }
 
 export interface ItemRecord {
@@ -59,6 +75,14 @@ export interface ItemPriceSummary {
   currency: string | null;
   priceCount: number;
   hasMixedCurrency: boolean;
+  newMinAmount: number | null;
+  newCount: number;
+  newCurrency: string | null;
+  newHasMixedCurrency: boolean;
+  usedMinAmount: number | null;
+  usedCount: number;
+  usedCurrency: string | null;
+  usedHasMixedCurrency: boolean;
 }
 
 const mapItemRow = (row: ItemRow): ItemRecord => {
@@ -70,7 +94,17 @@ const mapItemRow = (row: ItemRow): ItemRecord => {
           maxAmount: Number(row.price_max_amount),
           currency: row.price_currency,
           priceCount,
-          hasMixedCurrency: (row.price_currency_count ?? 0) > 1
+          hasMixedCurrency: (row.price_currency_count ?? 0) > 1,
+          newMinAmount:
+            row.price_min_new_amount !== null ? Number(row.price_min_new_amount) : null,
+          newCount: row.price_new_count ?? 0,
+          newCurrency: row.price_new_currency,
+          newHasMixedCurrency: (row.price_new_currency_count ?? 0) > 1,
+          usedMinAmount:
+            row.price_min_used_amount !== null ? Number(row.price_min_used_amount) : null,
+          usedCount: row.price_used_count ?? 0,
+          usedCurrency: row.price_used_currency,
+          usedHasMixedCurrency: (row.price_used_currency_count ?? 0) > 1
         }
       : null;
 
@@ -122,7 +156,15 @@ export const listItems = async (options: ListItemsOptions): Promise<ItemRecord[]
           MAX(ip.amount) AS max_amount,
           COUNT(*)::INT AS total_count,
           COUNT(DISTINCT ip.currency)::INT AS currency_count,
-          MIN(ip.currency) AS currency
+          MIN(ip.currency) AS currency,
+          MIN(CASE WHEN ip.condition = 'new' THEN ip.amount END) AS min_new_amount,
+          COUNT(CASE WHEN ip.condition = 'new' THEN 1 END)::INT AS new_count,
+          COUNT(DISTINCT CASE WHEN ip.condition = 'new' THEN ip.currency END)::INT AS new_currency_count,
+          MIN(CASE WHEN ip.condition = 'new' THEN ip.currency END) AS new_currency,
+          MIN(CASE WHEN ip.condition = 'used' THEN ip.amount END) AS min_used_amount,
+          COUNT(CASE WHEN ip.condition = 'used' THEN 1 END)::INT AS used_count,
+          COUNT(DISTINCT CASE WHEN ip.condition = 'used' THEN ip.currency END)::INT AS used_currency_count,
+          MIN(CASE WHEN ip.condition = 'used' THEN ip.currency END) AS used_currency
         FROM item_prices ip
         WHERE ip.item_id = i.id
       ) price_summary ON TRUE

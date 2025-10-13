@@ -23,6 +23,14 @@ export interface ItemPriceSummary {
   currency: string | null;
   priceCount: number;
   hasMixedCurrency: boolean;
+  newMinAmount: number | null;
+  newCount: number;
+  newCurrency: string | null;
+  newHasMixedCurrency: boolean;
+  usedMinAmount: number | null;
+  usedCount: number;
+  usedCurrency: string | null;
+  usedHasMixedCurrency: boolean;
 }
 
 interface ListResponseMeta {
