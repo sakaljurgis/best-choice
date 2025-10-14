@@ -122,6 +122,7 @@ export const formatPriceAmount = (amount: number, currency: string | null): stri
 export const getPriceSummaryDisplay = (
   summary: Item['priceSummary'] | null
 ): { primary: string; secondary: string | null } => {
+  console.log(summary);
   if (!summary || summary.priceCount === 0) {
     return { primary: '—', secondary: null };
   }

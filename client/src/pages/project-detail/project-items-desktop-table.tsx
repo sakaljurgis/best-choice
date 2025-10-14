@@ -111,6 +111,7 @@ export function ProjectItemsDesktopTable({
                             aria-controls={panelId}
                           >
                             <Pencil aria-hidden className="h-4 w-4" />
+                            <span hidden={!isExpanded}>Close</span>
                             <span className="sr-only">Edit Prices</span>
                           </button>
                         </div>

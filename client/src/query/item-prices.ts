@@ -3,8 +3,10 @@ import {
   createItemPrice,
   deleteItemPrice,
   fetchItemPrices,
+  updateItemPrice,
   type CreateItemPricePayload,
-  type ItemPricesResponse
+  type ItemPricesResponse,
+  type UpdateItemPricePayload
 } from '../api/item-prices';
 import { projectsKeys } from './projects';
 
@@ -60,6 +62,27 @@ export const useDeleteItemPriceMutation = (
 
   return useMutation({
     mutationFn: (priceId: string) => deleteItemPrice(priceId),
+    onSuccess: () => {
+      if (itemId) {
+        queryClient.invalidateQueries({ queryKey: itemPricesKeys.list(itemId) });
+      }
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: projectsKeys.items(projectId) });
+        queryClient.invalidateQueries({ queryKey: projectsKeys.detail(projectId) });
+      }
+    }
+  });
+};
+
+export const useUpdateItemPriceMutation = (
+  itemId: string | undefined,
+  projectId: string | undefined
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (variables: { priceId: string; payload: UpdateItemPricePayload }) =>
+      updateItemPrice(variables.priceId, variables.payload),
     onSuccess: () => {
       if (itemId) {
         queryClient.invalidateQueries({ queryKey: itemPricesKeys.list(itemId) });

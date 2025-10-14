@@ -179,11 +179,10 @@ export const updateItemPrice = async (
   try {
     await client.query('BEGIN');
 
-    const existingResult = await client.query<ItemPriceRow>(
+    const existingResult = await client.query<{ id: string }>(
       `
-        SELECT ${priceColumns}
+        SELECT p.id
         FROM item_prices p
-        LEFT JOIN urls u ON u.id = p.source_url_id
         WHERE p.id = $1
         FOR UPDATE
       `,

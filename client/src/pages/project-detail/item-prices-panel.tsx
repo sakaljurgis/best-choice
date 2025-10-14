@@ -1,14 +1,13 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import {
   useCreateItemPriceMutation,
   useDeleteItemPriceMutation,
-  useItemPricesQuery
+  useItemPricesQuery,
+  useUpdateItemPriceMutation
 } from '../../query/item-prices';
 import type { PriceCondition } from '../../api/item-prices';
 import { formatRelativeTime } from '../../utils/relative-time';
-
-const priceConditionOptions: PriceCondition[] = ['new', 'used'];
 
 interface ItemPricesPanelProps {
   itemId: string;
@@ -24,27 +23,63 @@ export function ItemPricesPanel({ itemId, projectId }: ItemPricesPanelProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingDeletionId, setPendingDeletionId] = useState<string | null>(null);
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [editingCondition, setEditingCondition] = useState<PriceCondition>('new');
+  const [editingAmount, setEditingAmount] = useState('');
+  const [editingCurrency, setEditingCurrency] = useState('EUR');
+  const [editingSourceUrl, setEditingSourceUrl] = useState('');
+  const [editingNote, setEditingNote] = useState('');
 
   const pricesQuery = useItemPricesQuery(itemId, true);
   const createPriceMutation = useCreateItemPriceMutation(itemId, projectId);
   const deletePriceMutation = useDeleteItemPriceMutation(itemId, projectId);
+  const updatePriceMutation = useUpdateItemPriceMutation(itemId, projectId);
 
   const prices = pricesQuery.data?.data ?? [];
+  const sortedPrices = useMemo(
+    () => [...prices].sort((first, second) => first.amount - second.amount),
+    [prices]
+  );
   const errorMessage = useMemo(
     () =>
       formError ??
       actionError ??
       (createPriceMutation.isError ? createPriceMutation.error.message : null) ??
-      (deletePriceMutation.isError ? deletePriceMutation.error.message : null),
+      (deletePriceMutation.isError ? deletePriceMutation.error.message : null) ??
+      (updatePriceMutation.isError ? updatePriceMutation.error.message : null),
     [
       formError,
       actionError,
       createPriceMutation.isError,
       createPriceMutation.error,
       deletePriceMutation.isError,
-      deletePriceMutation.error
+      deletePriceMutation.error,
+      updatePriceMutation.isError,
+      updatePriceMutation.error
     ]
   );
+
+  const resetEditingState = () => {
+    setEditingPriceId(null);
+    setEditingCondition('new');
+    setEditingAmount('');
+    setEditingCurrency('EUR');
+    setEditingSourceUrl('');
+    setEditingNote('');
+    updatePriceMutation.reset();
+  };
+
+  const startEditingPrice = (price: (typeof prices)[number]) => {
+    setFormError(null);
+    setActionError(null);
+    updatePriceMutation.reset();
+    setEditingPriceId(price.id);
+    setEditingCondition(price.condition);
+    setEditingAmount(price.amount.toFixed(2));
+    setEditingCurrency(price.currency.toUpperCase());
+    setEditingSourceUrl(price.sourceUrl ?? '');
+    setEditingNote(price.note ?? '');
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -71,6 +106,56 @@ export function ItemPricesPanel({ itemId, projectId }: ItemPricesPanelProps) {
       setAmount('');
       setSourceUrl('');
       setNote('');
+    } catch (error) {
+      setActionError((error as Error).message);
+    }
+  };
+
+  const handleCancelEditing = () => {
+    setActionError(null);
+    resetEditingState();
+  };
+
+  const handleUpdatePrice = async () => {
+    if (!editingPriceId) {
+      return;
+    }
+
+    setActionError(null);
+
+    const trimmedAmount = editingAmount.trim();
+    const parsedAmount = Number(trimmedAmount);
+
+    if (trimmedAmount === '' || !Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      setActionError('Amount must be a non-negative number.');
+      return;
+    }
+
+    const trimmedCurrency = editingCurrency.trim().toUpperCase();
+
+    if (!trimmedCurrency) {
+      setActionError('Currency is required.');
+      return;
+    }
+
+    setEditingCurrency(trimmedCurrency);
+
+    const trimmedSourceUrl = editingSourceUrl.trim();
+    const trimmedNote = editingNote.trim();
+
+    try {
+      await updatePriceMutation.mutateAsync({
+        priceId: editingPriceId,
+        payload: {
+          condition: editingCondition,
+          amount: parsedAmount,
+          currency: trimmedCurrency,
+          sourceUrl: trimmedSourceUrl ? trimmedSourceUrl : null,
+          note: trimmedNote ? trimmedNote : null
+        }
+      });
+
+      resetEditingState();
     } catch (error) {
       setActionError((error as Error).message);
     }
@@ -149,17 +234,100 @@ export function ItemPricesPanel({ itemId, projectId }: ItemPricesPanelProps) {
                     Loading prices…
                   </td>
                 </tr>
-              ) : prices.length ? (
-                prices.map((price) => {
+              ) : sortedPrices.length ? (
+                sortedPrices.map((price) => {
                   const lastUpdated = price.updatedAt ?? price.createdAt;
+                  const isEditing = editingPriceId === price.id;
 
                   return (
                     <tr key={price.id}>
-                      <td className="px-4 py-3 capitalize text-slate-800">{price.condition}</td>
-                      <td className="px-4 py-3 text-slate-800">{price.amount.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-slate-800">{price.currency}</td>
-                      <td className="px-4 py-3 text-slate-800">
-                        {price.sourceUrl ? (
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <>
+                            <label className="sr-only" htmlFor={`price-edit-condition-${price.id}`}>
+                              Condition
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                id={`price-edit-condition-${price.id}`}
+                                type="checkbox"
+                                checked={editingCondition === 'new'}
+                                onChange={(event) =>
+                                  setEditingCondition(event.target.checked ? 'new' : 'used')
+                                }
+                                className="h-4 w-4 rounded border border-slate-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-slate-700">New</span>
+                            </div>
+                          </>
+                        ) : (
+                          <span className="capitalize text-slate-800">{price.condition}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <>
+                            <label className="sr-only" htmlFor={`price-edit-amount-${price.id}`}>
+                              Amount
+                            </label>
+                            <input
+                              id={`price-edit-amount-${price.id}`}
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={editingAmount}
+                              onChange={(event) => setEditingAmount(event.target.value)}
+                              className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                              placeholder="129.99"
+                              required
+                            />
+                          </>
+                        ) : (
+                          <span className="text-slate-800">{price.amount.toFixed(2)}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <>
+                            <label className="sr-only" htmlFor={`price-edit-currency-${price.id}`}>
+                              Currency
+                            </label>
+                            <input
+                              id={`price-edit-currency-${price.id}`}
+                              type="text"
+                              value={editingCurrency}
+                              onChange={(event) =>
+                                setEditingCurrency(event.target.value.toUpperCase())
+                              }
+                              maxLength={3}
+                              className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm uppercase shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                              placeholder="EUR"
+                              required
+                            />
+                          </>
+                        ) : (
+                          <span className="text-slate-800">{price.currency}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <>
+                            <label
+                              className="sr-only"
+                              htmlFor={`price-edit-source-url-${price.id}`}
+                            >
+                              Source URL
+                            </label>
+                            <input
+                              id={`price-edit-source-url-${price.id}`}
+                              type="url"
+                              value={editingSourceUrl}
+                              onChange={(event) => setEditingSourceUrl(event.target.value)}
+                              className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                              placeholder="https://shop.example.com/deal"
+                            />
+                          </>
+                        ) : price.sourceUrl ? (
                           <a
                             href={price.sourceUrl}
                             target="_blank"
@@ -172,21 +340,77 @@ export function ItemPricesPanel({ itemId, projectId }: ItemPricesPanelProps) {
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-slate-800">
-                        {price.note ? price.note : <span className="text-slate-400">—</span>}
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <>
+                            <label className="sr-only" htmlFor={`price-edit-note-${price.id}`}>
+                              Notes
+                            </label>
+                            <textarea
+                              id={`price-edit-note-${price.id}`}
+                              value={editingNote}
+                              onChange={(event) => setEditingNote(event.target.value)}
+                              rows={1}
+                              className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                              placeholder="Includes extra grip kit"
+                            />
+                          </>
+                        ) : price.note ? (
+                          price.note
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-600">
-                        {lastUpdated ? formatRelativeTime(lastUpdated) : <span className="text-slate-400">—</span>}
+                        {lastUpdated ? (
+                          formatRelativeTime(lastUpdated)
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePrice(price.id)}
-                          className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={deletePriceMutation.isPending && pendingDeletionId === price.id}
-                        >
-                          <Trash2 aria-hidden className="h-4 w-4" />
-                        </button>
+                        {isEditing ? (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={handleUpdatePrice}
+                              className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:bg-blue-400"
+                              disabled={updatePriceMutation.isPending}
+                            >
+                              {updatePriceMutation.isPending ? 'Saving…' : 'Save'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCancelEditing}
+                              className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={updatePriceMutation.isPending}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditingPrice(price)}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={updatePriceMutation.isPending}
+                            >
+                              <Pencil aria-hidden className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePrice(price.id)}
+                              className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={
+                                (deletePriceMutation.isPending && pendingDeletionId === price.id) ||
+                                updatePriceMutation.isPending
+                              }
+                            >
+                              <Trash2 aria-hidden className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -203,18 +427,16 @@ export function ItemPricesPanel({ itemId, projectId }: ItemPricesPanelProps) {
                   <label className="sr-only" htmlFor={`price-condition-${itemId}`}>
                     Condition
                   </label>
-                  <select
-                    id={`price-condition-${itemId}`}
-                    value={condition}
-                    onChange={(event) => setCondition(event.target.value as PriceCondition)}
-                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  >
-                    {priceConditionOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id={`price-condition-${itemId}`}
+                      type="checkbox"
+                      checked={condition === 'new'}
+                      onChange={(event) => setCondition(event.target.checked ? 'new' : 'used')}
+                      className="h-4 w-4 rounded border border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-slate-700">New</span>
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <label className="sr-only" htmlFor={`price-amount-${itemId}`}>

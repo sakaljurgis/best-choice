@@ -48,6 +48,15 @@ export interface CreateItemPricePayload {
   note?: string | null;
 }
 
+export interface UpdateItemPricePayload {
+  condition?: PriceCondition;
+  amount?: number;
+  currency?: string;
+  sourceUrl?: string | null;
+  sourceUrlId?: string | null;
+  note?: string | null;
+}
+
 interface SingleItemPriceResponse {
   data: ItemPrice;
 }
@@ -68,6 +77,46 @@ export const createItemPrice = async (
         sourceUrlId: payload.sourceUrlId ?? null,
         note: payload.note ?? null
       }
+    }
+  );
+
+  return response.data;
+};
+
+export const updateItemPrice = async (
+  priceId: string,
+  payload: UpdateItemPricePayload
+): Promise<ItemPrice> => {
+  const body: Record<string, unknown> = {};
+
+  if (payload.condition !== undefined) {
+    body.condition = payload.condition;
+  }
+  if (payload.amount !== undefined) {
+    body.amount = payload.amount;
+  }
+  if (payload.currency !== undefined) {
+    body.currency = payload.currency;
+  }
+  if (payload.sourceUrlId !== undefined) {
+    body.sourceUrlId = payload.sourceUrlId;
+  }
+  if (payload.sourceUrl !== undefined) {
+    body.sourceUrl = payload.sourceUrl;
+  }
+  if (payload.note !== undefined) {
+    body.note = payload.note;
+  }
+
+  if (Object.keys(body).length === 0) {
+    throw new Error('No fields provided to update item price');
+  }
+
+  const response = await apiFetch<SingleItemPriceResponse>(
+    `/prices/${priceId}`,
+    {
+      method: 'PATCH',
+      body
     }
   );
 
