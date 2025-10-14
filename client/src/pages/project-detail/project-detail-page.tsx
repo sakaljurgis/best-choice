@@ -314,6 +314,7 @@ export function ProjectDetailPage() {
       <ItemPricesModal
         isOpen={Boolean(priceModalItem)}
         item={priceModalItem}
+        projectId={projectId}
         onClose={handlePricesModalClose}
       />
     </div>

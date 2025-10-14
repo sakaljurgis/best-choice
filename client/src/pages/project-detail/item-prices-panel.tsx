@@ -6,9 +6,10 @@ const priceConditionOptions: PriceCondition[] = ['new', 'used'];
 
 interface ItemPricesPanelProps {
   itemId: string;
+  projectId: string | undefined;
 }
 
-export function ItemPricesPanel({ itemId }: ItemPricesPanelProps) {
+export function ItemPricesPanel({ itemId, projectId }: ItemPricesPanelProps) {
   const [condition, setCondition] = useState<PriceCondition>('new');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
@@ -17,7 +18,7 @@ export function ItemPricesPanel({ itemId }: ItemPricesPanelProps) {
   const [formError, setFormError] = useState<string | null>(null);
 
   const pricesQuery = useItemPricesQuery(itemId, true);
-  const createPriceMutation = useCreateItemPriceMutation(itemId);
+  const createPriceMutation = useCreateItemPriceMutation(itemId, projectId);
 
   const prices = pricesQuery.data?.data ?? [];
   const creationError = useMemo(

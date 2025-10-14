@@ -5,10 +5,16 @@ import { ItemPricesPanel } from './item-prices-panel';
 interface ItemPricesModalProps {
   isOpen: boolean;
   item: Item | null;
+  projectId: string | undefined;
   onClose: () => void;
 }
 
-export function ItemPricesModal({ isOpen, item, onClose }: ItemPricesModalProps) {
+export function ItemPricesModal({
+  isOpen,
+  item,
+  projectId,
+  onClose
+}: ItemPricesModalProps) {
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -53,7 +59,7 @@ export function ItemPricesModal({ isOpen, item, onClose }: ItemPricesModalProps)
             <h2 className="text-xl font-semibold text-slate-900">Edit Item Prices</h2>
             <p className="text-sm text-slate-500">{itemTitle}</p>
           </header>
-          <ItemPricesPanel itemId={item.id} />
+          <ItemPricesPanel itemId={item.id} projectId={projectId} />
         </div>
       </div>
     </div>

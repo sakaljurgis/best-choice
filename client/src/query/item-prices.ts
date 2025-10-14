@@ -1,10 +1,11 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createItemPrice,
   fetchItemPrices,
   type CreateItemPricePayload,
   type ItemPricesResponse
 } from '../api/item-prices';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { projectsKeys } from './projects';
 
 const DEFAULT_LIMIT = 50;
 
@@ -23,7 +24,10 @@ export const useItemPricesQuery = (
     queryFn: ({ signal }) => fetchItemPrices(itemId!, { limit: DEFAULT_LIMIT, offset: 0, signal })
   });
 
-export const useCreateItemPriceMutation = (itemId: string | undefined) => {
+export const useCreateItemPriceMutation = (
+  itemId: string | undefined,
+  projectId: string | undefined
+) => {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -39,6 +43,10 @@ export const useCreateItemPriceMutation = (itemId: string | undefined) => {
         return;
       }
       queryClient.invalidateQueries({ queryKey: itemPricesKeys.list(itemId) });
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: projectsKeys.items(projectId) });
+        queryClient.invalidateQueries({ queryKey: projectsKeys.detail(projectId) });
+      }
     }
   });
 };
