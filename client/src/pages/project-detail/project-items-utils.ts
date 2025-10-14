@@ -122,9 +122,8 @@ export const formatPriceAmount = (amount: number, currency: string | null): stri
 export const getPriceSummaryDisplay = (
   summary: Item['priceSummary'] | null
 ): { primary: string; secondary: string | null } => {
-  console.log(summary);
   if (!summary || summary.priceCount === 0) {
-    return { primary: '—', secondary: null };
+    return { primary: 'Add Price', secondary: null };
   }
 
   const resolveCurrency = (preferred: string | null) => preferred ?? summary.currency ?? null;
@@ -138,12 +137,16 @@ export const getPriceSummaryDisplay = (
     if (!count) {
       return null;
     }
+    const conditionLabel = condition === 'new' ? 'New' : 'Used';
     if (amount === null || hasMixedCurrency) {
-      return `${condition} prices vary (${count})`;
+      return `${conditionLabel} prices vary (${count})`;
     }
     const resolvedCurrency = resolveCurrency(currency);
     const formatted = formatPriceAmount(amount, resolvedCurrency);
-    return `${condition} from ${formatted} (${count})`;
+    if (count === 1) {
+      return `${conditionLabel} ${formatted}`;
+    }
+    return `${conditionLabel} from ${formatted} (${count})`;
   };
 
   const newLabel = formatConditionLabel(
