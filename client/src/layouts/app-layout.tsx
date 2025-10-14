@@ -10,17 +10,15 @@ function AppLayout() {
   const location = useLocation();
   const { data, isLoading, isError } = useProjectsQuery();
 
-  const projects = data?.data ?? [];
-
   const recentProjects = useMemo(
     () =>
-      [...projects]
+      [...(data?.data ?? [])]
         .sort(
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         )
         .slice(0, 3),
-    [projects]
+    [data?.data]
   );
 
   const isInitialDesktop = typeof window !== 'undefined'
