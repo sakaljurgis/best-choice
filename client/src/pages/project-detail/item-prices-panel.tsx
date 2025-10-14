@@ -1,6 +1,12 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { useCreateItemPriceMutation, useItemPricesQuery } from '../../query/item-prices';
+import { Trash2 } from 'lucide-react';
+import {
+  useCreateItemPriceMutation,
+  useDeleteItemPriceMutation,
+  useItemPricesQuery
+} from '../../query/item-prices';
 import type { PriceCondition } from '../../api/item-prices';
+import { formatRelativeTime } from '../../utils/relative-time';
 
 const priceConditionOptions: PriceCondition[] = ['new', 'used'];
 
@@ -12,23 +18,39 @@ interface ItemPricesPanelProps {
 export function ItemPricesPanel({ itemId, projectId }: ItemPricesPanelProps) {
   const [condition, setCondition] = useState<PriceCondition>('new');
   const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState('EUR');
   const [sourceUrl, setSourceUrl] = useState('');
   const [note, setNote] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingDeletionId, setPendingDeletionId] = useState<string | null>(null);
 
   const pricesQuery = useItemPricesQuery(itemId, true);
   const createPriceMutation = useCreateItemPriceMutation(itemId, projectId);
+  const deletePriceMutation = useDeleteItemPriceMutation(itemId, projectId);
 
   const prices = pricesQuery.data?.data ?? [];
-  const creationError = useMemo(
-    () => formError ?? (createPriceMutation.isError ? createPriceMutation.error.message : null),
-    [formError, createPriceMutation.isError, createPriceMutation.error]
+  const errorMessage = useMemo(
+    () =>
+      formError ??
+      actionError ??
+      (createPriceMutation.isError ? createPriceMutation.error.message : null) ??
+      (deletePriceMutation.isError ? deletePriceMutation.error.message : null),
+    [
+      formError,
+      actionError,
+      createPriceMutation.isError,
+      createPriceMutation.error,
+      deletePriceMutation.isError,
+      deletePriceMutation.error
+    ]
   );
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
+    setActionError(null);
+    createPriceMutation.reset();
 
     const parsedAmount = Number(amount);
 
@@ -50,7 +72,21 @@ export function ItemPricesPanel({ itemId, projectId }: ItemPricesPanelProps) {
       setSourceUrl('');
       setNote('');
     } catch (error) {
-      setFormError((error as Error).message);
+      setActionError((error as Error).message);
+    }
+  };
+
+  const handleDeletePrice = async (priceId: string) => {
+    setActionError(null);
+    deletePriceMutation.reset();
+    setPendingDeletionId(priceId);
+
+    try {
+      await deletePriceMutation.mutateAsync(priceId);
+    } catch (error) {
+      setActionError((error as Error).message);
+    } finally {
+      setPendingDeletionId(null);
     }
   };
 
@@ -78,154 +114,183 @@ export function ItemPricesPanel({ itemId, projectId }: ItemPricesPanelProps) {
         </p>
       ) : null}
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <form
-          className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
-          onSubmit={handleSubmit}
-        >
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-600" htmlFor={`price-condition-${itemId}`}>
-                Condition
-              </label>
-              <select
-                id={`price-condition-${itemId}`}
-                value={condition}
-                onChange={(event) => setCondition(event.target.value as PriceCondition)}
-                className="rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              >
-                {priceConditionOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-600" htmlFor={`price-amount-${itemId}`}>
-                Amount
-              </label>
-              <input
-                id={`price-amount-${itemId}`}
-                type="number"
-                min={0}
-                step="0.01"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-                className="rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                placeholder="129.99"
-                required
-              />
-            </div>
-          </div>
+      <form onSubmit={handleSubmit} className="mt-4">
+        <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-slate-50">
+              <tr>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Condition
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Amount
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Currency
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Source
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Notes
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Updated
+                </th>
+                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {pricesQuery.isLoading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-xs text-slate-500">
+                    Loading prices…
+                  </td>
+                </tr>
+              ) : prices.length ? (
+                prices.map((price) => {
+                  const lastUpdated = price.updatedAt ?? price.createdAt;
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-slate-600" htmlFor={`price-currency-${itemId}`}>
-              Currency
-            </label>
-            <input
-              id={`price-currency-${itemId}`}
-              type="text"
-              value={currency}
-              onChange={(event) => setCurrency(event.target.value.toUpperCase())}
-              maxLength={3}
-              className="uppercase rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              placeholder="USD"
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-slate-600" htmlFor={`price-source-url-${itemId}`}>
-              Source URL
-            </label>
-            <input
-              id={`price-source-url-${itemId}`}
-              type="url"
-              value={sourceUrl}
-              onChange={(event) => setSourceUrl(event.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              placeholder="https://shop.example.com/deal"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-slate-600" htmlFor={`price-note-${itemId}`}>
-              Notes
-            </label>
-            <textarea
-              id={`price-note-${itemId}`}
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              rows={2}
-              className="rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              placeholder="Includes extra grip kit"
-            />
-          </div>
-
-          {creationError ? (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">{creationError}</p>
-          ) : null}
-
-          <div className="flex items-center justify-end gap-3 pt-1">
-            <button
-              type="submit"
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
-              disabled={createPriceMutation.isPending}
-            >
-              {createPriceMutation.isPending ? 'Adding…' : 'Add Price'}
-            </button>
-          </div>
-        </form>
-
-        <div className="space-y-3">
-          {prices.map((price) => (
-            <article
-              key={price.id}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm"
-            >
-              <header className="flex items-center justify-between">
-                <span className="font-semibold text-slate-900">
-                  {price.condition} • {price.amount.toFixed(2)} {price.currency}
-                </span>
-              </header>
-              <dl className="mt-2 space-y-1 text-xs text-slate-600">
-                {price.sourceUrl ? (
-                  <div>
-                    <dt className="font-medium text-slate-500">Source URL</dt>
-                    <dd>
-                      <a
-                        href={price.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-blue-600 hover:text-blue-700"
-                      >
-                        View source
-                      </a>
-                    </dd>
-                  </div>
-                ) : null}
-                {price.note ? (
-                  <div>
-                    <dt className="font-medium text-slate-500">Notes</dt>
-                    <dd>{price.note}</dd>
-                  </div>
-                ) : null}
-                <div>
-                  <dt className="font-medium text-slate-500">Created</dt>
-                  <dd>{new Date(price.createdAt).toLocaleString()}</dd>
-                </div>
-                {price.updatedAt !== price.createdAt ? (
-                  <div>
-                    <dt className="font-medium text-slate-500">Updated</dt>
-                    <dd>{new Date(price.updatedAt).toLocaleString()}</dd>
-                  </div>
-                ) : null}
-              </dl>
-            </article>
-          ))}
+                  return (
+                    <tr key={price.id}>
+                      <td className="px-4 py-3 capitalize text-slate-800">{price.condition}</td>
+                      <td className="px-4 py-3 text-slate-800">{price.amount.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-slate-800">{price.currency}</td>
+                      <td className="px-4 py-3 text-slate-800">
+                        {price.sourceUrl ? (
+                          <a
+                            href={price.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            View source
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-800">
+                        {price.note ? price.note : <span className="text-slate-400">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {lastUpdated ? formatRelativeTime(lastUpdated) : <span className="text-slate-400">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePrice(price.id)}
+                          className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={deletePriceMutation.isPending && pendingDeletionId === price.id}
+                        >
+                          <Trash2 aria-hidden className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-xs text-slate-500">
+                    No prices recorded yet.
+                  </td>
+                </tr>
+              )}
+              <tr className="bg-slate-50">
+                <td className="px-4 py-3">
+                  <label className="sr-only" htmlFor={`price-condition-${itemId}`}>
+                    Condition
+                  </label>
+                  <select
+                    id={`price-condition-${itemId}`}
+                    value={condition}
+                    onChange={(event) => setCondition(event.target.value as PriceCondition)}
+                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  >
+                    {priceConditionOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-4 py-3">
+                  <label className="sr-only" htmlFor={`price-amount-${itemId}`}>
+                    Amount
+                  </label>
+                  <input
+                    id={`price-amount-${itemId}`}
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    placeholder="129.99"
+                    required
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <label className="sr-only" htmlFor={`price-currency-${itemId}`}>
+                    Currency
+                  </label>
+                  <input
+                    id={`price-currency-${itemId}`}
+                    type="text"
+                    value={currency}
+                    onChange={(event) => setCurrency(event.target.value.toUpperCase())}
+                    maxLength={3}
+                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm uppercase shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    placeholder="EUR"
+                    required
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <label className="sr-only" htmlFor={`price-source-url-${itemId}`}>
+                    Source URL
+                  </label>
+                  <input
+                    id={`price-source-url-${itemId}`}
+                    type="url"
+                    value={sourceUrl}
+                    onChange={(event) => setSourceUrl(event.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    placeholder="https://shop.example.com/deal"
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <label className="sr-only" htmlFor={`price-note-${itemId}`}>
+                    Notes
+                  </label>
+                  <textarea
+                    id={`price-note-${itemId}`}
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    rows={1}
+                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    placeholder="Includes extra grip kit"
+                  />
+                </td>
+                <td className="px-4 py-3 text-slate-400">—</td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    type="submit"
+                    className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+                    disabled={createPriceMutation.isPending}
+                  >
+                    {createPriceMutation.isPending ? 'Adding…' : 'Add Price'}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </div>
+        {errorMessage ? (
+          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">{errorMessage}</p>
+        ) : null}
+      </form>
     </div>
   );
 }

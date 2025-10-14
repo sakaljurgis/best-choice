@@ -73,3 +73,9 @@ export const createItemPrice = async (
 
   return response.data;
 };
+
+export const deleteItemPrice = async (priceId: string): Promise<void> => {
+  await apiFetch<null>(`/prices/${priceId}`, {
+    method: 'DELETE'
+  });
+};

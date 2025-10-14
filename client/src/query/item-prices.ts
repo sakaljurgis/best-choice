@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createItemPrice,
+  deleteItemPrice,
   fetchItemPrices,
   type CreateItemPricePayload,
   type ItemPricesResponse
@@ -43,6 +44,26 @@ export const useCreateItemPriceMutation = (
         return;
       }
       queryClient.invalidateQueries({ queryKey: itemPricesKeys.list(itemId) });
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: projectsKeys.items(projectId) });
+        queryClient.invalidateQueries({ queryKey: projectsKeys.detail(projectId) });
+      }
+    }
+  });
+};
+
+export const useDeleteItemPriceMutation = (
+  itemId: string | undefined,
+  projectId: string | undefined
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (priceId: string) => deleteItemPrice(priceId),
+    onSuccess: () => {
+      if (itemId) {
+        queryClient.invalidateQueries({ queryKey: itemPricesKeys.list(itemId) });
+      }
       if (projectId) {
         queryClient.invalidateQueries({ queryKey: projectsKeys.items(projectId) });
         queryClient.invalidateQueries({ queryKey: projectsKeys.detail(projectId) });
