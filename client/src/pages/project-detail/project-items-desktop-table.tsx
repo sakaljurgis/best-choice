@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { ExternalLink, Pencil } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import type { Item } from '@shared/models/item';
 import { ItemPricesPanel } from './item-prices-panel';
 import { formatAttributeValue, getPriceSummaryDisplay } from './project-items-utils';
@@ -97,24 +97,24 @@ export function ProjectItemsDesktopTable({
                     ))}
                     <td className="px-4 py-3 align-top">
                       <div className="flex flex-col gap-0.5 text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-slate-900">
-                            {priceDisplay.primary}
+                        <button
+                          type="button"
+                          onClick={() => onTogglePrices(item.id)}
+                          className="inline-flex items-center gap-2 self-start rounded-md text-left text-sm font-semibold text-slate-900 transition hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                          title={isExpanded ? 'Close Prices' : 'View Prices'}
+                          aria-expanded={isExpanded}
+                          aria-controls={panelId}
+                        >
+                          <span>{priceDisplay.primary}</span>
+                          {isExpanded ? (
+                            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                              Close
+                            </span>
+                          ) : null}
+                          <span className="sr-only">
+                            {isExpanded ? 'Close price list' : 'View price list'}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => onTogglePrices(item.id)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                            aria-label="Edit Prices"
-                            title="Edit Prices"
-                            aria-expanded={isExpanded}
-                            aria-controls={panelId}
-                          >
-                            <Pencil aria-hidden className="h-4 w-4" />
-                            <span hidden={!isExpanded}>Close</span>
-                            <span className="sr-only">Edit Prices</span>
-                          </button>
-                        </div>
+                        </button>
                         {priceDisplay.secondary ? (
                           <span className="text-slate-500">{priceDisplay.secondary}</span>
                         ) : null}
