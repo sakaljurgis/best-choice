@@ -43,13 +43,10 @@ export const createItemPrice = async (req: Request, res: Response) => {
   const itemId = parseUuid(req.params.itemId, 'itemId');
   const payload = parseItemPriceCreatePayload(req.body);
 
-  let sourceUrlId: string | null = null;
-  if (payload.sourceType === 'url') {
-    sourceUrlId = await resolveUrlId({
-      sourceUrlId: payload.sourceUrlId,
-      sourceUrl: payload.sourceUrl
-    });
-  }
+  const sourceUrlId = await resolveUrlId({
+    sourceUrlId: payload.sourceUrlId,
+    sourceUrl: payload.sourceUrl
+  });
 
   try {
     const price = await createItemPriceRepo({
@@ -57,12 +54,8 @@ export const createItemPrice = async (req: Request, res: Response) => {
       condition: payload.condition,
       amount: payload.amount,
       currency: payload.currency,
-      sourceType: payload.sourceType,
       sourceUrlId,
-      sourceNote: payload.sourceNote,
-      note: payload.note,
-      observedAt: payload.observedAt,
-      isPrimary: payload.isPrimary
+      note: payload.note
     });
 
     res.status(201).json({ data: price });
@@ -106,9 +99,7 @@ export const updateItemPrice = async (req: Request, res: Response) => {
     'sourceUrlId'
   );
 
-  if (payload.sourceType === 'manual') {
-    sourceUrlId = null;
-  } else if (payload.sourceType === 'url' || hasSourceUrlField || hasSourceUrlIdField) {
+  if (hasSourceUrlField || hasSourceUrlIdField) {
     sourceUrlId = await resolveUrlId({
       sourceUrlId: payload.sourceUrlId ?? null,
       sourceUrl: payload.sourceUrl ?? null
@@ -119,12 +110,8 @@ export const updateItemPrice = async (req: Request, res: Response) => {
     condition: payload.condition,
     amount: payload.amount,
     currency: payload.currency,
-    sourceType: payload.sourceType,
     sourceUrlId,
-    sourceNote: payload.sourceNote,
-    note: payload.note,
-    observedAt: payload.observedAt,
-    isPrimary: payload.isPrimary
+    note: payload.note
   });
 
   if (!price) {

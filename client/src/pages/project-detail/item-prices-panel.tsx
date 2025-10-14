@@ -1,9 +1,8 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { useCreateItemPriceMutation, useItemPricesQuery } from '../../query/item-prices';
-import type { PriceCondition, PriceSourceType } from '../../api/item-prices';
+import type { PriceCondition } from '../../api/item-prices';
 
 const priceConditionOptions: PriceCondition[] = ['new', 'used'];
-const priceSourceOptions: PriceSourceType[] = ['url', 'manual'];
 
 interface ItemPricesPanelProps {
   itemId: string;
@@ -13,12 +12,8 @@ export function ItemPricesPanel({ itemId }: ItemPricesPanelProps) {
   const [condition, setCondition] = useState<PriceCondition>('new');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USD');
-  const [sourceType, setSourceType] = useState<PriceSourceType>('manual');
   const [sourceUrl, setSourceUrl] = useState('');
   const [note, setNote] = useState('');
-  const [sourceNote, setSourceNote] = useState('');
-  const [observedAt, setObservedAt] = useState('');
-  const [isPrimary, setIsPrimary] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
 
   const pricesQuery = useItemPricesQuery(itemId, true);
@@ -46,20 +41,13 @@ export function ItemPricesPanel({ itemId }: ItemPricesPanelProps) {
         condition,
         amount: parsedAmount,
         currency: currency.trim().toUpperCase(),
-        sourceType,
-        sourceUrl: sourceType === 'url' ? (sourceUrl.trim() || null) : null,
-        note: note.trim() ? note.trim() : null,
-        sourceNote: sourceNote.trim() ? sourceNote.trim() : null,
-        observedAt: observedAt ? new Date(observedAt).toISOString() : undefined,
-        isPrimary
+        sourceUrl: sourceUrl.trim() ? sourceUrl.trim() : null,
+        note: note.trim() ? note.trim() : null
       });
 
       setAmount('');
       setSourceUrl('');
       setNote('');
-      setSourceNote('');
-      setObservedAt('');
-      setIsPrimary(true);
     } catch (error) {
       setFormError((error as Error).message);
     }
@@ -130,97 +118,33 @@ export function ItemPricesPanel({ itemId }: ItemPricesPanelProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-600" htmlFor={`price-currency-${itemId}`}>
-                Currency
-              </label>
-              <input
-                id={`price-currency-${itemId}`}
-                type="text"
-                value={currency}
-                onChange={(event) => setCurrency(event.target.value.toUpperCase())}
-                maxLength={3}
-                className="uppercase rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                placeholder="USD"
-                required
-              />
-            </div>
-
-            <div className="flex items-center gap-2 pt-5">
-              <input
-                id={`price-primary-${itemId}`}
-                type="checkbox"
-                checked={isPrimary}
-                onChange={(event) => setIsPrimary(event.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <label className="text-xs font-medium text-slate-600" htmlFor={`price-primary-${itemId}`}>
-                Mark as current best price
-              </label>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-600" htmlFor={`price-source-type-${itemId}`}>
-                Source Type
-              </label>
-              <select
-                id={`price-source-type-${itemId}`}
-                value={sourceType}
-                onChange={(event) => setSourceType(event.target.value as PriceSourceType)}
-                className="rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              >
-                {priceSourceOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-600" htmlFor={`price-observed-${itemId}`}>
-                Observed At
-              </label>
-              <input
-                id={`price-observed-${itemId}`}
-                type="datetime-local"
-                value={observedAt}
-                onChange={(event) => setObservedAt(event.target.value)}
-                className="rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              />
-            </div>
-          </div>
-
-          {sourceType === 'url' ? (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-600" htmlFor={`price-source-url-${itemId}`}>
-                Source URL
-              </label>
-              <input
-                id={`price-source-url-${itemId}`}
-                type="url"
-                value={sourceUrl}
-                onChange={(event) => setSourceUrl(event.target.value)}
-                className="rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                placeholder="https://shop.example.com/deal"
-                required
-              />
-            </div>
-          ) : null}
-
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-slate-600" htmlFor={`price-source-note-${itemId}`}>
-              Source Note
+            <label className="text-xs font-medium text-slate-600" htmlFor={`price-currency-${itemId}`}>
+              Currency
             </label>
             <input
-              id={`price-source-note-${itemId}`}
+              id={`price-currency-${itemId}`}
               type="text"
-              value={sourceNote}
-              onChange={(event) => setSourceNote(event.target.value)}
+              value={currency}
+              onChange={(event) => setCurrency(event.target.value.toUpperCase())}
+              maxLength={3}
+              className="uppercase rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              placeholder="USD"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-slate-600" htmlFor={`price-source-url-${itemId}`}>
+              Source URL
+            </label>
+            <input
+              id={`price-source-url-${itemId}`}
+              type="url"
+              value={sourceUrl}
+              onChange={(event) => setSourceUrl(event.target.value)}
               className="rounded-md border border-slate-300 px-2 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              placeholder="Amazon seller"
+              placeholder="https://shop.example.com/deal"
             />
           </div>
 
@@ -263,20 +187,11 @@ export function ItemPricesPanel({ itemId }: ItemPricesPanelProps) {
                 <span className="font-semibold text-slate-900">
                   {price.condition} • {price.amount.toFixed(2)} {price.currency}
                 </span>
-                {price.isPrimary ? (
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-600">
-                    Primary
-                  </span>
-                ) : null}
               </header>
               <dl className="mt-2 space-y-1 text-xs text-slate-600">
-                <div>
-                  <dt className="font-medium text-slate-500">Source</dt>
-                  <dd className="capitalize">{price.sourceType}</dd>
-                </div>
                 {price.sourceUrl ? (
                   <div>
-                    <dt className="font-medium text-slate-500">URL</dt>
+                    <dt className="font-medium text-slate-500">Source URL</dt>
                     <dd>
                       <a
                         href={price.sourceUrl}
@@ -289,12 +204,6 @@ export function ItemPricesPanel({ itemId }: ItemPricesPanelProps) {
                     </dd>
                   </div>
                 ) : null}
-                {price.sourceNote ? (
-                  <div>
-                    <dt className="font-medium text-slate-500">Source Note</dt>
-                    <dd>{price.sourceNote}</dd>
-                  </div>
-                ) : null}
                 {price.note ? (
                   <div>
                     <dt className="font-medium text-slate-500">Notes</dt>
@@ -302,9 +211,15 @@ export function ItemPricesPanel({ itemId }: ItemPricesPanelProps) {
                   </div>
                 ) : null}
                 <div>
-                  <dt className="font-medium text-slate-500">Observed</dt>
-                  <dd>{new Date(price.observedAt).toLocaleString()}</dd>
+                  <dt className="font-medium text-slate-500">Created</dt>
+                  <dd>{new Date(price.createdAt).toLocaleString()}</dd>
                 </div>
+                {price.updatedAt !== price.createdAt ? (
+                  <div>
+                    <dt className="font-medium text-slate-500">Updated</dt>
+                    <dd>{new Date(price.updatedAt).toLocaleString()}</dd>
+                  </div>
+                ) : null}
               </dl>
             </article>
           ))}

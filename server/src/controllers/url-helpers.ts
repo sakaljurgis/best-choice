@@ -1,4 +1,8 @@
-import { createUrl, findUrlById } from '../db/urls-repository.js';
+import {
+  createUrl,
+  findUrlById,
+  findUrlByValue
+} from '../db/urls-repository.js';
 import { HttpError } from '../errors/http-error.js';
 import { normalizeUrl } from '../utils/url-normalizer.js';
 
@@ -10,8 +14,14 @@ export const resolveUrlId = async (params: {
 
   if (params.sourceUrl) {
     const normalized = normalizeUrl(params.sourceUrl);
-    const url = await createUrl({ url: normalized });
-    urlId = url.id;
+    const existing = await findUrlByValue(normalized);
+
+    if (existing) {
+      urlId = existing.id;
+    } else {
+      const url = await createUrl({ url: normalized });
+      urlId = url.id;
+    }
   } else if (urlId) {
     const existing = await findUrlById(urlId);
     if (!existing) {

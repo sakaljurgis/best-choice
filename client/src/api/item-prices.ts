@@ -1,12 +1,8 @@
 import type { PaginatedResponse } from '@shared/models/pagination';
-import type {
-  ItemPrice,
-  PriceCondition,
-  PriceSourceType
-} from '@shared/models/item-price';
+import type { ItemPrice, PriceCondition } from '@shared/models/item-price';
 import { apiFetch } from './http-client';
 
-export type { PriceCondition, PriceSourceType };
+export type { PriceCondition };
 
 export type ItemPricesResponse = PaginatedResponse<ItemPrice>;
 
@@ -47,13 +43,9 @@ export interface CreateItemPricePayload {
   condition: PriceCondition;
   amount: number;
   currency: string;
-  sourceType: PriceSourceType;
   sourceUrl?: string | null;
   sourceUrlId?: string | null;
-  sourceNote?: string | null;
   note?: string | null;
-  observedAt?: string;
-  isPrimary?: boolean;
 }
 
 interface SingleItemPriceResponse {
@@ -72,13 +64,9 @@ export const createItemPrice = async (
         condition: payload.condition,
         amount: payload.amount,
         currency: payload.currency,
-        sourceType: payload.sourceType,
         sourceUrl: payload.sourceUrl ?? null,
         sourceUrlId: payload.sourceUrlId ?? null,
-        sourceNote: payload.sourceNote ?? null,
-        note: payload.note ?? null,
-        observedAt: payload.observedAt ?? null,
-        isPrimary: payload.isPrimary ?? false
+        note: payload.note ?? null
       }
     }
   );

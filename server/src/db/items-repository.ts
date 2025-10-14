@@ -212,7 +212,15 @@ export const getItemById = async (id: string): Promise<ItemRecord | null> => {
           MAX(ip.amount) AS max_amount,
           COUNT(*)::INT AS total_count,
           COUNT(DISTINCT ip.currency)::INT AS currency_count,
-          MIN(ip.currency) AS currency
+          MIN(ip.currency) AS currency,
+          MIN(CASE WHEN ip.condition = 'new' THEN ip.amount END) AS min_new_amount,
+          COUNT(CASE WHEN ip.condition = 'new' THEN 1 END)::INT AS new_count,
+          COUNT(DISTINCT CASE WHEN ip.condition = 'new' THEN ip.currency END)::INT AS new_currency_count,
+          MIN(CASE WHEN ip.condition = 'new' THEN ip.currency END) AS new_currency,
+          MIN(CASE WHEN ip.condition = 'used' THEN ip.amount END) AS min_used_amount,
+          COUNT(CASE WHEN ip.condition = 'used' THEN 1 END)::INT AS used_count,
+          COUNT(DISTINCT CASE WHEN ip.condition = 'used' THEN ip.currency END)::INT AS used_currency_count,
+          MIN(CASE WHEN ip.condition = 'used' THEN ip.currency END) AS used_currency
         FROM item_prices ip
         WHERE ip.item_id = i.id
       ) price_summary ON TRUE
