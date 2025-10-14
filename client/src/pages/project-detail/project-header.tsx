@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { ProjectStatus } from '../../api/projects';
+import type { ProjectStatus } from '@shared/models/project';
 
 interface ProjectHeaderProps {
   name: string;

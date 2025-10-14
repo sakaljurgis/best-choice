@@ -1,3 +1,4 @@
+import type { ItemPrice, PriceCondition, PriceSourceType } from '@shared/models/item-price';
 import { pool, query } from './pool.js';
 
 const priceColumns = `
@@ -20,10 +21,10 @@ const priceColumns = `
 export interface ItemPriceRow {
   id: string;
   item_id: string;
-  condition: 'new' | 'used';
+  condition: PriceCondition;
   amount: string;
   currency: string;
-  source_type: 'url' | 'manual';
+  source_type: PriceSourceType;
   source_url_id: string | null;
   source_note: string | null;
   note: string | null;
@@ -34,22 +35,7 @@ export interface ItemPriceRow {
   source_url: string | null;
 }
 
-export interface ItemPriceRecord {
-  id: string;
-  itemId: string;
-  condition: 'new' | 'used';
-  amount: number;
-  currency: string;
-  sourceType: 'url' | 'manual';
-  sourceUrlId: string | null;
-  sourceUrl: string | null;
-  sourceNote: string | null;
-  note: string | null;
-  observedAt: string;
-  isPrimary: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+export type ItemPriceRecord = ItemPrice;
 
 const mapItemPriceRow = (row: ItemPriceRow): ItemPriceRecord => ({
   id: row.id,
@@ -72,7 +58,7 @@ export interface ListItemPricesOptions {
   itemId: string;
   limit: number;
   offset: number;
-  condition?: 'new' | 'used';
+  condition?: PriceCondition;
 }
 
 export const listItemPrices = async (
@@ -109,10 +95,10 @@ export const listItemPrices = async (
 
 export interface CreateItemPriceParams {
   itemId: string;
-  condition: 'new' | 'used';
+  condition: PriceCondition;
   amount: number;
   currency: string;
-  sourceType: 'url' | 'manual';
+  sourceType: PriceSourceType;
   sourceUrlId: string | null;
   sourceNote: string | null;
   note: string | null;
@@ -213,10 +199,10 @@ export const getItemPriceById = async (id: string): Promise<ItemPriceRecord | nu
 };
 
 export interface UpdateItemPriceParams {
-  condition?: 'new' | 'used';
+  condition?: PriceCondition;
   amount?: number;
   currency?: string;
-  sourceType?: 'url' | 'manual';
+  sourceType?: PriceSourceType;
   sourceUrlId?: string | null;
   sourceNote?: string | null;
   note?: string | null;

@@ -14,6 +14,14 @@ export default defineConfig(({ mode }) => {
       port: clientPort,
       proxy: {
         '/api': proxyTarget
+      },
+      fs: {
+        allow: [path.resolve(__dirname, '..')]
+      }
+    },
+    resolve: {
+      alias: {
+        '@shared': path.resolve(__dirname, '../shared')
       }
     }
   };

@@ -1,7 +1,12 @@
+import type { ItemStatus } from '@shared/models/item';
 import { HttpError } from '../errors/http-error.js';
 import { parseUuid } from './common.js';
 
-const itemStatuses = new Set(['active', 'rejected']);
+const itemStatuses = new Set<ItemStatus>(['active', 'rejected']);
+
+const isItemStatus = (value: unknown): value is ItemStatus => {
+  return typeof value === 'string' && itemStatuses.has(value as ItemStatus);
+};
 
 const ensureAttributesObject = (value: unknown): Record<string, unknown> => {
   if (value === undefined) {
@@ -18,7 +23,7 @@ export interface ItemCreateInput {
   model: string;
   sourceUrlId: string | null;
   sourceUrl: string | null;
-  status: 'active' | 'rejected';
+  status: ItemStatus;
   note: string | null;
   attributes: Record<string, unknown>;
 }
@@ -55,7 +60,7 @@ export const parseItemCreatePayload = (payload: unknown): ItemCreateInput => {
     throw new HttpError(400, 'model must be a non-empty string up to 150 characters');
   }
 
-  if (typeof status !== 'string' || !itemStatuses.has(status)) {
+  if (!isItemStatus(status)) {
     throw new HttpError(400, 'status must be one of active, rejected');
   }
 
@@ -80,7 +85,7 @@ export const parseItemCreatePayload = (payload: unknown): ItemCreateInput => {
     manufacturer:
       manufacturerValue === null ? null : (manufacturerValue as string).trim(),
     model: model.trim(),
-    status: status as 'active' | 'rejected',
+    status: status as ItemStatus,
     note: note === null ? null : (note as string),
     attributes: ensureAttributesObject(attributes),
     sourceUrlId: normalizedSourceUrlId,
@@ -127,10 +132,10 @@ export const parseItemUpdatePayload = (payload: unknown): ItemUpdateInput => {
   }
 
   if (status !== undefined) {
-    if (typeof status !== 'string' || !itemStatuses.has(status)) {
+    if (!isItemStatus(status)) {
       throw new HttpError(400, 'status must be one of active, rejected');
     }
-    result.status = status as 'active' | 'rejected';
+    result.status = status;
   }
 
   if (note !== undefined) {
@@ -174,14 +179,14 @@ export const parseItemUpdatePayload = (payload: unknown): ItemUpdateInput => {
 
 export const parseItemStatusFilter = (
   value: unknown
-): 'active' | 'rejected' | undefined => {
+): ItemStatus | undefined => {
   if (value === undefined) {
     return undefined;
   }
-  if (typeof value !== 'string' || !itemStatuses.has(value)) {
+  if (!isItemStatus(value)) {
     throw new HttpError(400, 'status filter must be one of active, rejected');
   }
-  return value as 'active' | 'rejected';
+  return value;
 };
 
 export interface ItemImportPayload {

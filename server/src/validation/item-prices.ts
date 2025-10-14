@@ -1,8 +1,17 @@
+import type { PriceCondition, PriceSourceType } from '@shared/models/item-price';
 import { HttpError } from '../errors/http-error.js';
 import { parseUuid } from './common.js';
 
-const priceConditions = new Set(['new', 'used']);
-const priceSources = new Set(['url', 'manual']);
+const priceConditions = new Set<PriceCondition>(['new', 'used']);
+const priceSources = new Set<PriceSourceType>(['url', 'manual']);
+
+const isPriceCondition = (value: unknown): value is PriceCondition => {
+  return typeof value === 'string' && priceConditions.has(value as PriceCondition);
+};
+
+const isPriceSourceType = (value: unknown): value is PriceSourceType => {
+  return typeof value === 'string' && priceSources.has(value as PriceSourceType);
+};
 
 const normalizeCurrency = (value: unknown): string => {
   if (typeof value !== 'string' || value.trim().length !== 3) {
@@ -29,10 +38,10 @@ const parseObservedAt = (value: unknown): string | undefined => {
 };
 
 export interface ItemPriceCreateInput {
-  condition: 'new' | 'used';
+  condition: PriceCondition;
   amount: number;
   currency: string;
-  sourceType: 'url' | 'manual';
+  sourceType: PriceSourceType;
   sourceUrlId: string | null;
   sourceUrl: string | null;
   sourceNote: string | null;
@@ -81,7 +90,7 @@ const parseIsPrimary = (value: unknown): boolean => {
 };
 
 const parseSourceFields = (
-  sourceType: 'url' | 'manual',
+  sourceType: PriceSourceType,
   sourceUrlIdValue: unknown,
   sourceUrlValue: unknown
 ): { sourceUrlId: string | null; sourceUrl: string | null } => {
@@ -144,25 +153,25 @@ export const parseItemPriceCreatePayload = (
     isPrimary
   } = payload as Record<string, unknown>;
 
-  if (typeof condition !== 'string' || !priceConditions.has(condition)) {
+  if (!isPriceCondition(condition)) {
     throw new HttpError(400, 'condition must be one of new, used');
   }
 
-  if (typeof sourceType !== 'string' || !priceSources.has(sourceType)) {
+  if (!isPriceSourceType(sourceType)) {
     throw new HttpError(400, 'sourceType must be one of url, manual');
   }
 
   const source = parseSourceFields(
-    sourceType as 'url' | 'manual',
+    sourceType,
     sourceUrlId,
     sourceUrl
   );
 
   return {
-    condition: condition as 'new' | 'used',
+    condition,
     amount: parseAmount(amount),
     currency: normalizeCurrency(currency),
-    sourceType: sourceType as 'url' | 'manual',
+    sourceType,
     sourceUrlId: source.sourceUrlId,
     sourceUrl: source.sourceUrl,
     sourceNote: parseSourceNote(sourceNote),
@@ -194,10 +203,10 @@ export const parseItemPriceUpdatePayload = (
   } = payload as Record<string, unknown>;
 
   if (condition !== undefined) {
-    if (typeof condition !== 'string' || !priceConditions.has(condition)) {
+    if (!isPriceCondition(condition)) {
       throw new HttpError(400, 'condition must be one of new, used');
     }
-    result.condition = condition as 'new' | 'used';
+    result.condition = condition;
   }
 
   if (amount !== undefined) {
@@ -209,14 +218,14 @@ export const parseItemPriceUpdatePayload = (
   }
 
   if (sourceType !== undefined) {
-    if (typeof sourceType !== 'string' || !priceSources.has(sourceType)) {
+    if (!isPriceSourceType(sourceType)) {
       throw new HttpError(400, 'sourceType must be one of url, manual');
     }
-    result.sourceType = sourceType as 'url' | 'manual';
+    result.sourceType = sourceType;
   }
 
   if (sourceUrlId !== undefined || sourceUrl !== undefined) {
-    const type = result.sourceType ?? (sourceType as 'url' | 'manual' | undefined);
+    const type = result.sourceType ?? (isPriceSourceType(sourceType) ? sourceType : undefined);
     if (!type) {
       throw new HttpError(
         400,
@@ -253,12 +262,12 @@ export const parseItemPriceUpdatePayload = (
 
 export const parsePriceConditionFilter = (
   value: unknown
-): 'new' | 'used' | undefined => {
+): PriceCondition | undefined => {
   if (value === undefined) {
     return undefined;
   }
-  if (typeof value !== 'string' || !priceConditions.has(value)) {
+  if (!isPriceCondition(value)) {
     throw new HttpError(400, 'condition filter must be one of new, used');
   }
-  return value as 'new' | 'used';
+  return value;
 };

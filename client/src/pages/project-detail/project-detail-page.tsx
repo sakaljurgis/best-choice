@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import type { Item } from '@shared/models/item';
 import {
   useCreateItemMutation,
   useUpdateItemMutation,
@@ -11,7 +12,6 @@ import {
   importItemFromUrl,
   type CreateItemPayload,
   type ImportedItemData,
-  type Item,
   type UpdateItemPayload
 } from '../../api/items';
 import { ItemFormModal } from '../../components/item-form-modal';

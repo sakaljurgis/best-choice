@@ -1,3 +1,4 @@
+import type { Project, ProjectStatus } from '@shared/models/project';
 import { query } from './pool.js';
 
 const projectColumns = `
@@ -15,22 +16,11 @@ export interface ProjectRow {
   id: string;
   name: string;
   description: string | null;
-  status: 'active' | 'archived';
+  status: ProjectStatus;
   project_attributes: string[];
   project_priority_rules: unknown;
   created_at: Date;
   updated_at: Date;
-}
-
-export interface Project {
-  id: string;
-  name: string;
-  description: string | null;
-  status: 'active' | 'archived';
-  attributes: string[];
-  priorityRules: unknown;
-  createdAt: string;
-  updatedAt: string;
 }
 
 const mapProjectRow = (row: ProjectRow): Project => ({
@@ -47,7 +37,7 @@ const mapProjectRow = (row: ProjectRow): Project => ({
 export interface ListProjectsOptions {
   limit: number;
   offset: number;
-  status?: 'active' | 'archived';
+  status?: ProjectStatus;
 }
 
 export const listProjects = async (
@@ -86,7 +76,7 @@ export const listProjects = async (
 export interface CreateProjectParams {
   name: string;
   description: string | null;
-  status: 'active' | 'archived';
+  status: ProjectStatus;
   attributes: string[];
   priorityRules: unknown;
 }
@@ -136,7 +126,7 @@ export const getProjectById = async (id: string): Promise<Project | null> => {
 export interface UpdateProjectParams {
   name?: string;
   description?: string | null;
-  status?: 'active' | 'archived';
+  status?: ProjectStatus;
   attributes?: string[];
   priorityRules?: unknown;
 }

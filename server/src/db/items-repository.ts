@@ -1,3 +1,4 @@
+import type { Item, ItemPriceSummary, ItemStatus } from '@shared/models/item';
 import { query } from './pool.js';
 
 const itemColumns = `
@@ -33,7 +34,7 @@ export interface ItemRow {
   manufacturer: string | null;
   model: string;
   source_url_id: string | null;
-  status: 'active' | 'rejected';
+  status: ItemStatus;
   note: string | null;
   attributes: Record<string, unknown>;
   created_at: Date;
@@ -54,36 +55,7 @@ export interface ItemRow {
   price_used_currency_count: number | null;
 }
 
-export interface ItemRecord {
-  id: string;
-  projectId: string;
-  manufacturer: string | null;
-  model: string;
-  sourceUrlId: string | null;
-  sourceUrl: string | null;
-  status: 'active' | 'rejected';
-  note: string | null;
-  attributes: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-  priceSummary: ItemPriceSummary | null;
-}
-
-export interface ItemPriceSummary {
-  minAmount: number;
-  maxAmount: number;
-  currency: string | null;
-  priceCount: number;
-  hasMixedCurrency: boolean;
-  newMinAmount: number | null;
-  newCount: number;
-  newCurrency: string | null;
-  newHasMixedCurrency: boolean;
-  usedMinAmount: number | null;
-  usedCount: number;
-  usedCurrency: string | null;
-  usedHasMixedCurrency: boolean;
-}
+export type ItemRecord = Item;
 
 const mapItemRow = (row: ItemRow): ItemRecord => {
   const priceCount = row.price_count ?? 0;
@@ -126,7 +98,7 @@ const mapItemRow = (row: ItemRow): ItemRecord => {
 
 export interface ListItemsOptions {
   projectId: string;
-  status?: 'active' | 'rejected';
+  status?: ItemStatus;
   limit: number;
   offset: number;
 }
@@ -184,7 +156,7 @@ export interface CreateItemParams {
   manufacturer: string | null;
   model: string;
   sourceUrlId: string | null;
-  status: 'active' | 'rejected';
+  status: ItemStatus;
   note: string | null;
   attributes: Record<string, unknown>;
 }
@@ -260,7 +232,7 @@ export interface UpdateItemParams {
   manufacturer?: string | null;
   model?: string;
   sourceUrlId?: string | null;
-  status?: 'active' | 'rejected';
+  status?: ItemStatus;
   note?: string | null;
   attributes?: Record<string, unknown>;
 }

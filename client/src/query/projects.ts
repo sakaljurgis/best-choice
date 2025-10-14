@@ -4,7 +4,6 @@ import {
   fetchProjects,
   updateProject,
   type CreateProjectPayload,
-  type Project,
   type ProjectsListResponse,
   type UpdateProjectPayload
 } from '../api/projects';
@@ -16,6 +15,7 @@ import {
   type ProjectItemsResponse,
   type UpdateItemPayload
 } from '../api/items';
+import type { Project } from '@shared/models/project';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 const DEFAULT_LIMIT = 50;

@@ -1,28 +1,8 @@
+import type { PaginatedResponse } from '@shared/models/pagination';
+import type { Project, ProjectStatus } from '@shared/models/project';
 import { apiFetch } from './http-client';
 
-export type ProjectStatus = 'active' | 'archived';
-
-export interface Project {
-  id: string;
-  name: string;
-  description: string | null;
-  status: ProjectStatus;
-  attributes: string[];
-  priorityRules: unknown;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface ListResponseMeta {
-  limit: number;
-  offset: number;
-  count: number;
-}
-
-export interface ProjectsListResponse {
-  data: Project[];
-  meta: ListResponseMeta;
-}
+export type ProjectsListResponse = PaginatedResponse<Project>;
 
 export interface FetchProjectsParams {
   limit?: number;

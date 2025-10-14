@@ -1,35 +1,14 @@
+import type { PaginatedResponse } from '@shared/models/pagination';
+import type {
+  ItemPrice,
+  PriceCondition,
+  PriceSourceType
+} from '@shared/models/item-price';
 import { apiFetch } from './http-client';
 
-export type PriceCondition = 'new' | 'used';
-export type PriceSourceType = 'url' | 'manual';
+export type { PriceCondition, PriceSourceType };
 
-export interface ItemPrice {
-  id: string;
-  itemId: string;
-  condition: PriceCondition;
-  amount: number;
-  currency: string;
-  sourceType: PriceSourceType;
-  sourceUrlId: string | null;
-  sourceUrl: string | null;
-  sourceNote: string | null;
-  note: string | null;
-  observedAt: string;
-  isPrimary: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface ListResponseMeta {
-  limit: number;
-  offset: number;
-  count: number;
-}
-
-export interface ItemPricesResponse {
-  data: ItemPrice[];
-  meta: ListResponseMeta;
-}
+export type ItemPricesResponse = PaginatedResponse<ItemPrice>;
 
 export interface FetchItemPricesParams {
   limit?: number;

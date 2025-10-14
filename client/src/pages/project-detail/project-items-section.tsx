@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, Pencil } from 'lucide-react';
-import type { Item } from '../../api/items';
+import type { Item } from '@shared/models/item';
 
 interface ProjectItemsSectionProps {
   items: Item[];

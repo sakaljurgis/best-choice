@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Item } from '../../api/items';
+import type { Item } from '@shared/models/item';
 import { ItemPricesPanel } from './item-prices-panel';
 
 interface ItemPricesModalProps {
