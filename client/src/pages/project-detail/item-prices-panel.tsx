@@ -9,6 +9,35 @@ import {
 import type { PriceCondition } from '../../api/item-prices';
 import { formatRelativeTime } from '../../utils/relative-time';
 
+const getSourceDomainLabel = (rawUrl: string): string => {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return 'Source';
+  }
+
+  const normalizeHostname = (hostname: string) =>
+    hostname.replace(/^www\./i, '') || hostname;
+
+  try {
+    const parsed = new URL(trimmed);
+    const hostname = normalizeHostname(parsed.hostname);
+    return hostname.length ? hostname : parsed.hostname || 'Source';
+  } catch {
+    try {
+      const parsed = new URL(`https://${trimmed}`);
+      const hostname = normalizeHostname(parsed.hostname);
+      return hostname.length ? hostname : parsed.hostname || trimmed;
+    } catch {
+      const withoutProtocol = trimmed.replace(/^[a-z]+:\/\//i, '');
+      const slashIndex = withoutProtocol.indexOf('/');
+      const candidate = (
+        slashIndex === -1 ? withoutProtocol : withoutProtocol.slice(0, slashIndex)
+      ).trim();
+      return candidate.length ? candidate : trimmed;
+    }
+  }
+};
+
 interface ItemPricesPanelProps {
   itemId: string;
   projectId: string | undefined;
@@ -238,6 +267,10 @@ export function ItemPricesPanel({ itemId, projectId }: ItemPricesPanelProps) {
                 sortedPrices.map((price) => {
                   const lastUpdated = price.updatedAt ?? price.createdAt;
                   const isEditing = editingPriceId === price.id;
+                  const sourceLabel =
+                    price.sourceUrl !== null && price.sourceUrl !== undefined
+                      ? getSourceDomainLabel(price.sourceUrl)
+                      : null;
 
                   return (
                     <tr key={price.id}>
@@ -333,8 +366,9 @@ export function ItemPricesPanel({ itemId, projectId }: ItemPricesPanelProps) {
                             target="_blank"
                             rel="noreferrer"
                             className="text-blue-600 hover:text-blue-700"
+                            title={price.sourceUrl}
                           >
-                            View source
+                            {sourceLabel}
                           </a>
                         ) : (
                           <span className="text-slate-400">—</span>
