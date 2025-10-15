@@ -218,35 +218,67 @@ const normalizeArrayMembership = (entries: AttributeEntry[]): AttributeEntry[] =
   });
 };
 
-const computeTrackedKeySet = (attributes: string[]): Set<string> =>
-  new Set(
-    attributes
-      .map((attribute) => attribute.trim().toLowerCase())
-      .filter((attribute) => attribute.length)
-  );
+interface TrackedKeyMetadata {
+  set: Set<string>;
+  order: Map<string, number>;
+}
 
-const isTrackedKey = (key: string, trackedKeys: Set<string>): boolean => {
+const computeTrackedKeyMetadata = (attributes: string[]): TrackedKeyMetadata => {
+  const order = new Map<string, number>();
+  attributes
+    .map((attribute) => attribute.trim())
+    .filter((attribute) => attribute.length)
+    .forEach((attribute, index) => {
+      const normalized = attribute.toLowerCase();
+      if (!order.has(normalized)) {
+        order.set(normalized, index);
+      }
+    });
+  return {
+    set: new Set(order.keys()),
+    order
+  };
+};
+
+const isTrackedKey = (key: string, metadata: TrackedKeyMetadata): boolean => {
   if (!key) {
     return false;
   }
-  return trackedKeys.has(key.trim().toLowerCase());
+  return metadata.set.has(key.trim().toLowerCase());
 };
 
 const sortAttributeEntries = (
   entries: AttributeEntry[],
-  trackedKeys: Set<string>
+  trackedMetadata: TrackedKeyMetadata
 ): AttributeEntry[] => {
   const decorated = entries.map((entry, index) => ({
     entry,
     index,
-    isTracked: isTrackedKey(entry.key, trackedKeys)
+    isTracked: isTrackedKey(entry.key, trackedMetadata)
   }));
 
   decorated.sort((a, b) => {
-    if (a.isTracked === b.isTracked) {
+    if (a.isTracked && b.isTracked) {
+      const keyA = a.entry.key.trim().toLowerCase();
+      const keyB = b.entry.key.trim().toLowerCase();
+      const orderA = trackedMetadata.order.get(keyA);
+      const orderB = trackedMetadata.order.get(keyB);
+      if (orderA !== undefined && orderB !== undefined && orderA !== orderB) {
+        return orderA - orderB;
+      }
+      const keyComparison = keyA.localeCompare(keyB);
+      if (keyComparison !== 0) {
+        return keyComparison;
+      }
       return a.index - b.index;
     }
-    return a.isTracked ? -1 : 1;
+    if (a.isTracked) {
+      return -1;
+    }
+    if (b.isTracked) {
+      return 1;
+    }
+    return a.index - b.index;
   });
 
   return decorated.map(({ entry }) => entry);
@@ -254,8 +286,9 @@ const sortAttributeEntries = (
 
 const normalizeAndSortEntries = (
   entries: AttributeEntry[],
-  trackedKeys: Set<string>
-): AttributeEntry[] => sortAttributeEntries(normalizeArrayMembership(entries), trackedKeys);
+  trackedMetadata: TrackedKeyMetadata
+): AttributeEntry[] =>
+  sortAttributeEntries(normalizeArrayMembership(entries), trackedMetadata);
 
 export function ItemFormModal({
   isOpen,
@@ -277,18 +310,18 @@ export function ItemFormModal({
   const [attributeEntries, setAttributeEntries] = useState<AttributeEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const isFormDisabled = isSubmitting || isInitialDataLoading;
-  const trackedAttributeSet = useMemo(
-    () => computeTrackedKeySet(projectAttributes),
+  const trackedAttributeMetadata = useMemo(
+    () => computeTrackedKeyMetadata(projectAttributes),
     [projectAttributes]
   );
 
   const updateAttributeEntries = useCallback(
     (updater: (previous: AttributeEntry[]) => AttributeEntry[]) => {
       setAttributeEntries((previous) =>
-        normalizeAndSortEntries(updater(previous), trackedAttributeSet)
+        normalizeAndSortEntries(updater(previous), trackedAttributeMetadata)
       );
     },
-    [trackedAttributeSet]
+    [trackedAttributeMetadata]
   );
 
   useEffect(() => {
@@ -336,9 +369,12 @@ export function ItemFormModal({
     });
 
     setAttributeEntries(
-      normalizeAndSortEntries([...trackedEntries, ...additionalEntries], trackedAttributeSet)
+      normalizeAndSortEntries(
+        [...trackedEntries, ...additionalEntries],
+        trackedAttributeMetadata
+      )
     );
-  }, [isOpen, initialUrl, initialData, projectAttributes, trackedAttributeSet]);
+  }, [isOpen, initialUrl, initialData, projectAttributes, trackedAttributeMetadata]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -623,7 +659,7 @@ export function ItemFormModal({
                         trimmedValue === inference.canonicalText
                           ? null
                           : inference.canonicalText;
-                      const isTracked = isTrackedKey(attribute.key, trackedAttributeSet);
+                      const isTracked = isTrackedKey(attribute.key, trackedAttributeMetadata);
 
                       return (
                         <div

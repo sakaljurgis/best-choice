@@ -41,14 +41,20 @@ export function ProjectDetailPage() {
 
   const project = projectQuery.data;
   const items = useMemo(() => itemsQuery.data?.data ?? [], [itemsQuery.data]);
-  const projectAttributes = useMemo(() => project?.attributes ?? [], [project]);
+  const projectAttributes = useMemo(() => {
+    if (!project?.attributes) {
+      return [];
+    }
+    const normalized = project.attributes
+      .map((attribute) => attribute.trim())
+      .filter((attribute) => attribute.length);
+    return Array.from(new Set(normalized)).sort((a, b) => a.localeCompare(b));
+  }, [project]);
   const availableAttributes = useMemo(() => {
     const attributeSet = new Set<string>();
 
     projectAttributes.forEach((attribute) => {
-      if (attribute.trim().length) {
-        attributeSet.add(attribute.trim());
-      }
+      attributeSet.add(attribute);
     });
 
     items.forEach((item) => {
@@ -61,7 +67,7 @@ export function ProjectDetailPage() {
       });
     });
 
-    return Array.from(attributeSet);
+    return Array.from(attributeSet).sort((a, b) => a.localeCompare(b));
   }, [projectAttributes, items]);
 
   const openItemModal = (mode: 'url' | 'manual' | 'edit', initialUrl: string | null) => {

@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 
+const normalizeSelection = (attributes: string[]): string[] =>
+  Array.from(
+    new Set(
+      attributes
+        .map((attribute) => attribute.trim())
+        .filter((attribute) => attribute.length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
 export interface TrackedAttributesModalProps {
   isOpen: boolean;
   availableAttributes: string[];
@@ -19,13 +28,15 @@ export function TrackedAttributesModal({
   isSubmitting,
   errorMessage
 }: TrackedAttributesModalProps) {
-  const [selectedAttributes, setSelectedAttributes] = useState<string[]>(initialSelection);
+  const [selectedAttributes, setSelectedAttributes] = useState<string[]>(() =>
+    normalizeSelection(initialSelection)
+  );
 
   useEffect(() => {
     if (!isOpen) {
       return;
     }
-    setSelectedAttributes(initialSelection);
+    setSelectedAttributes(normalizeSelection(initialSelection));
   }, [isOpen, initialSelection]);
 
   const sortedAttributes = useMemo(
@@ -38,21 +49,16 @@ export function TrackedAttributesModal({
   }
 
   const toggleAttribute = (attribute: string) => {
-    setSelectedAttributes((current) =>
-      current.includes(attribute)
-        ? current.filter((value) => value !== attribute)
-        : [...current, attribute]
-    );
+    setSelectedAttributes((current) => {
+      if (current.includes(attribute)) {
+        return normalizeSelection(current.filter((value) => value !== attribute));
+      }
+      return normalizeSelection([...current, attribute]);
+    });
   };
 
   const handleSubmit = async () => {
-    const normalized = Array.from(
-      new Set(
-        selectedAttributes
-          .map((attribute) => attribute.trim())
-          .filter((attribute) => attribute.length > 0)
-      )
-    );
+    const normalized = normalizeSelection(selectedAttributes);
     await onSubmit(normalized);
   };
 
