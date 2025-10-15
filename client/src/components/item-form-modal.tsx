@@ -1,5 +1,7 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import type { CreateItemPayload, ImportedItemData } from '../api/items';
+import type { AttributeScalarType } from '../utils/attribute-values';
+import { inferScalarValue } from '../utils/attribute-values';
 
 export interface ItemFormModalProps {
   isOpen: boolean;
@@ -19,26 +21,241 @@ interface AttributeEntry {
   id: string;
   key: string;
   value: string;
+  forcedString: boolean;
+  expectedType: AttributeScalarType | null;
+  isArrayMember: boolean;
 }
 
 const createUniqueId = () => Math.random().toString(36).slice(2);
 
-const stringifyAttributeValue = (value: unknown): string => {
-  if (value === null || value === undefined) {
-    return '';
-  }
-  if (typeof value === 'string') {
-    return value;
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
+const createBlankEntry = (key = '', isArrayMember = false): AttributeEntry => ({
+  id: createUniqueId(),
+  key,
+  value: '',
+  forcedString: false,
+  expectedType: null,
+  isArrayMember
+});
+
+const parseScalarArrayCandidate = (raw: string): unknown[] | null => {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) {
+    return null;
   }
   try {
-    return JSON.stringify(value);
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) {
+      return null;
+    }
+    if (
+      parsed.every(
+        (item) =>
+          item === null ||
+          typeof item === 'string' ||
+          typeof item === 'number' ||
+          typeof item === 'boolean'
+      )
+    ) {
+      return parsed;
+    }
   } catch {
-    return String(value);
+    return null;
   }
+  return null;
 };
+
+const createForcedStringEntry = (
+  key: string,
+  value: string,
+  isArrayMember = false
+): AttributeEntry => ({
+  id: createUniqueId(),
+  key,
+  value,
+  forcedString: true,
+  expectedType: 'string',
+  isArrayMember
+});
+
+const createEntryFromScalar = (
+  key: string,
+  rawValue: unknown,
+  isArrayMember = false
+): AttributeEntry => {
+  if (rawValue === null || rawValue === undefined) {
+    return { ...createBlankEntry(key, isArrayMember), key };
+  }
+
+  if (typeof rawValue === 'boolean') {
+    return {
+      id: createUniqueId(),
+      key,
+      value: rawValue ? 'true' : 'false',
+      forcedString: false,
+      expectedType: 'boolean',
+      isArrayMember
+    };
+  }
+
+  if (typeof rawValue === 'number') {
+    return {
+      id: createUniqueId(),
+      key,
+      value: String(rawValue),
+      forcedString: false,
+      expectedType: 'number',
+      isArrayMember
+    };
+  }
+
+  if (typeof rawValue === 'string') {
+    if (rawValue.startsWith("'")) {
+      return createForcedStringEntry(key, rawValue.slice(1), isArrayMember);
+    }
+    const inference = inferScalarValue(rawValue, false, null);
+    const expectedType =
+      inference.normalizedValue === null ? null : inference.type;
+    return {
+      id: createUniqueId(),
+      key,
+      value: inference.canonicalText,
+      forcedString: false,
+      expectedType,
+      isArrayMember
+    };
+  }
+
+  try {
+    const serialized = JSON.stringify(rawValue);
+    if (typeof serialized === 'string') {
+      return createForcedStringEntry(key, serialized, isArrayMember);
+    }
+  } catch {
+    // ignore serialization errors
+  }
+
+  return createForcedStringEntry(key, String(rawValue), isArrayMember);
+};
+
+const expandAttributeValue = (key: string, value: unknown): AttributeEntry[] => {
+  if (Array.isArray(value)) {
+    const entries = value
+      .map((item) => {
+        if (Array.isArray(item)) {
+          try {
+            return createForcedStringEntry(key, JSON.stringify(item), true);
+          } catch {
+            return createForcedStringEntry(key, String(item), true);
+          }
+        }
+        return createEntryFromScalar(key, item, true);
+      })
+      .flat();
+    return entries.length
+      ? entries.map((entry) => ({
+          ...entry,
+          id: createUniqueId(),
+          key,
+          isArrayMember: true
+        }))
+      : [createBlankEntry(key, true)];
+  }
+
+  if (typeof value === 'string' && !value.startsWith("'")) {
+    const parsed = parseScalarArrayCandidate(value);
+    if (parsed) {
+      const entries = parsed
+        .map((item) => createEntryFromScalar(key, item, true))
+        .flat();
+      return entries.length
+        ? entries.map((entry) => ({
+            ...entry,
+            id: createUniqueId(),
+            key,
+            isArrayMember: true
+          }))
+        : [createBlankEntry(key, true)];
+    }
+  }
+
+  return [createEntryFromScalar(key, value, false)];
+};
+
+const normalizeArrayMembership = (entries: AttributeEntry[]): AttributeEntry[] => {
+  const keyLedger = new Map<
+    string,
+    {
+      count: number;
+      flagged: boolean;
+    }
+  >();
+
+  entries.forEach((entry) => {
+    const key = entry.key.trim();
+    if (!key.length) {
+      return;
+    }
+    const current = keyLedger.get(key) ?? { count: 0, flagged: false };
+    current.count += 1;
+    current.flagged = current.flagged || entry.isArrayMember;
+    keyLedger.set(key, current);
+  });
+
+  return entries.map((entry) => {
+    const key = entry.key.trim();
+    if (!key.length) {
+      return entry;
+    }
+    const info = keyLedger.get(key);
+    if (!info) {
+      return entry;
+    }
+    const shouldBeArray = info.flagged || info.count > 1;
+    if (entry.isArrayMember === shouldBeArray) {
+      return entry;
+    }
+    return { ...entry, isArrayMember: shouldBeArray };
+  });
+};
+
+const computeTrackedKeySet = (attributes: string[]): Set<string> =>
+  new Set(
+    attributes
+      .map((attribute) => attribute.trim().toLowerCase())
+      .filter((attribute) => attribute.length)
+  );
+
+const isTrackedKey = (key: string, trackedKeys: Set<string>): boolean => {
+  if (!key) {
+    return false;
+  }
+  return trackedKeys.has(key.trim().toLowerCase());
+};
+
+const sortAttributeEntries = (
+  entries: AttributeEntry[],
+  trackedKeys: Set<string>
+): AttributeEntry[] => {
+  const decorated = entries.map((entry, index) => ({
+    entry,
+    index,
+    isTracked: isTrackedKey(entry.key, trackedKeys)
+  }));
+
+  decorated.sort((a, b) => {
+    if (a.isTracked === b.isTracked) {
+      return a.index - b.index;
+    }
+    return a.isTracked ? -1 : 1;
+  });
+
+  return decorated.map(({ entry }) => entry);
+};
+
+const normalizeAndSortEntries = (
+  entries: AttributeEntry[],
+  trackedKeys: Set<string>
+): AttributeEntry[] => sortAttributeEntries(normalizeArrayMembership(entries), trackedKeys);
 
 export function ItemFormModal({
   isOpen,
@@ -60,6 +277,19 @@ export function ItemFormModal({
   const [attributeEntries, setAttributeEntries] = useState<AttributeEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const isFormDisabled = isSubmitting || isInitialDataLoading;
+  const trackedAttributeSet = useMemo(
+    () => computeTrackedKeySet(projectAttributes),
+    [projectAttributes]
+  );
+
+  const updateAttributeEntries = useCallback(
+    (updater: (previous: AttributeEntry[]) => AttributeEntry[]) => {
+      setAttributeEntries((previous) =>
+        normalizeAndSortEntries(updater(previous), trackedAttributeSet)
+      );
+    },
+    [trackedAttributeSet]
+  );
 
   useEffect(() => {
     if (!isOpen) {
@@ -73,7 +303,7 @@ export function ItemFormModal({
     setModel(initialData?.model ?? '');
     setNote(initialData?.note ?? '');
 
-    const trackedAttributeSet = new Set(
+    const remainingTrackedKeys = new Set(
       projectAttributes.map((attribute) => attribute.trim()).filter((attribute) => attribute.length)
     );
 
@@ -86,30 +316,29 @@ export function ItemFormModal({
         if (!key.length) {
           return;
         }
-        const entry = {
-          id: createUniqueId(),
-          key,
-          value: stringifyAttributeValue(value)
-        };
-        if (trackedAttributeSet.has(key)) {
-          trackedEntries.push(entry);
-          trackedAttributeSet.delete(key);
+        const isTracked = remainingTrackedKeys.has(key);
+        const entries = expandAttributeValue(key, value).map((entry) => ({
+          ...entry,
+          key
+        }));
+
+        if (isTracked) {
+          trackedEntries.push(...entries);
+          remainingTrackedKeys.delete(key);
         } else {
-          additionalEntries.push(entry);
+          additionalEntries.push(...entries);
         }
       });
     }
 
-    trackedAttributeSet.forEach((key) => {
-      trackedEntries.push({
-        id: createUniqueId(),
-        key,
-        value: ''
-      });
+    remainingTrackedKeys.forEach((key) => {
+      trackedEntries.push(createBlankEntry(key));
     });
 
-    setAttributeEntries([...trackedEntries, ...additionalEntries]);
-  }, [isOpen, initialUrl, initialData, projectAttributes]);
+    setAttributeEntries(
+      normalizeAndSortEntries([...trackedEntries, ...additionalEntries], trackedAttributeSet)
+    );
+  }, [isOpen, initialUrl, initialData, projectAttributes, trackedAttributeSet]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -141,7 +370,8 @@ export function ItemFormModal({
     }
 
     const attributesPayload: Record<string, unknown> = {};
-    const seenAttributeKeys = new Set<string>();
+    const arraySourceKeys = new Set<string>();
+    const keyCounts = new Map<string, number>();
 
     for (const attribute of attributeEntries) {
       const key = attribute.key.trim();
@@ -150,15 +380,57 @@ export function ItemFormModal({
         return;
       }
 
-      const normalizedKey = key.toLowerCase();
-      if (seenAttributeKeys.has(normalizedKey)) {
-        setError(`Attribute name "${key}" is already in use.`);
+      const inference = inferScalarValue(
+        attribute.value,
+        attribute.forcedString,
+        attribute.expectedType
+      );
+
+      if (inference.error) {
+        setError(`Attribute "${key}" has an invalid value. ${inference.error}`);
         return;
       }
 
-      seenAttributeKeys.add(normalizedKey);
-      attributesPayload[key] = attribute.value.trim() ? attribute.value.trim() : null;
+      let normalizedValue: unknown;
+
+      if (attribute.forcedString) {
+        normalizedValue = `'${attribute.value}`;
+      } else {
+        normalizedValue = inference.normalizedValue;
+      }
+
+      const existing = attributesPayload[key];
+      if (existing === undefined) {
+        attributesPayload[key] = normalizedValue;
+      } else if (Array.isArray(existing)) {
+        existing.push(normalizedValue);
+      } else {
+        attributesPayload[key] = [existing, normalizedValue];
+      }
+
+      const currentCount = keyCounts.get(key) ?? 0;
+      keyCounts.set(key, currentCount + 1);
+
+      if (attribute.isArrayMember) {
+        arraySourceKeys.add(key);
+      }
     }
+
+    arraySourceKeys.forEach((key) => {
+      const value = attributesPayload[key];
+      if (Array.isArray(value)) {
+        return;
+      }
+      attributesPayload[key] = value !== undefined ? [value] : [];
+    });
+
+    keyCounts.forEach((count, key) => {
+      if (count > 1 && !Array.isArray(attributesPayload[key])) {
+        const existing = attributesPayload[key];
+        attributesPayload[key] =
+          existing === undefined ? [] : [existing];
+      }
+    });
 
     try {
       const payload: CreateItemPayload = {
@@ -330,62 +602,177 @@ export function ItemFormModal({
                       <span>Value</span>
                       <span className="text-right">Actions</span>
                     </div>
-                    {attributeEntries.map((attribute) => (
-                      <div
-                        key={attribute.id}
-                        className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-3"
-                      >
-                        <input
-                          id={`attribute-name-${attribute.id}`}
-                          type="text"
-                          value={attribute.key}
-                          disabled={isFormDisabled}
-                          onChange={(event) => {
-                            const { value } = event.target;
-                            setAttributeEntries((previous) =>
-                              previous.map((item) =>
-                                item.id === attribute.id ? { ...item, key: value } : item
-                              )
-                            );
-                            setError(null);
-                          }}
-                          className="rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100"
-                          placeholder="Attribute name"
-                        />
-                        <input
-                          id={`attribute-value-${attribute.id}`}
-                          type="text"
-                          value={attribute.value}
-                          disabled={isFormDisabled}
-                          onChange={(event) => {
-                            const { value } = event.target;
-                            setAttributeEntries((previous) =>
-                              previous.map((item) =>
-                                item.id === attribute.id ? { ...item, value } : item
-                              )
-                            );
-                            setError(null);
-                          }}
-                          className="rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100"
-                          placeholder="Attribute value"
-                        />
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAttributeEntries((previous) =>
-                                previous.filter((item) => item.id !== attribute.id)
-                              );
-                              setError(null);
-                            }}
-                            disabled={isFormDisabled}
-                            className="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-transparent"
-                          >
-                            Remove
-                          </button>
+                    {attributeEntries.map((attribute) => {
+                      const inference = inferScalarValue(
+                        attribute.value,
+                        attribute.forcedString,
+                        attribute.expectedType
+                      );
+                      const trimmedValue = attribute.value.trim();
+                      const canonicalHint =
+                        attribute.forcedString ||
+                        !trimmedValue.length ||
+                        trimmedValue === inference.canonicalText
+                          ? null
+                          : inference.canonicalText;
+                      const isTracked = isTrackedKey(attribute.key, trackedAttributeSet);
+
+                      return (
+                        <div
+                          key={attribute.id}
+                          className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-3"
+                        >
+                          <div className="flex flex-col gap-1">
+                            <input
+                              id={`attribute-name-${attribute.id}`}
+                              type="text"
+                              value={attribute.key}
+                              disabled={isFormDisabled}
+                              onChange={(event) => {
+                                const { value } = event.target;
+                                updateAttributeEntries((previous) =>
+                                  previous.map((item) =>
+                                    item.id === attribute.id ? { ...item, key: value } : item
+                                  )
+                                );
+                                setError(null);
+                              }}
+                              className="rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100"
+                              placeholder="Attribute name"
+                            />
+                            {isTracked ? (
+                              <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                                Tracked
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <input
+                              id={`attribute-value-${attribute.id}`}
+                              type="text"
+                              value={attribute.value}
+                              disabled={isFormDisabled}
+                              onChange={(event) => {
+                                const { value } = event.target;
+                                updateAttributeEntries((previous) =>
+                                  previous.map((item) => {
+                                    if (item.id !== attribute.id) {
+                                      return item;
+                                    }
+                                    const shouldForceString =
+                                      !item.forcedString && value.startsWith("'");
+                                    const nextForcedString =
+                                      shouldForceString ? true : item.forcedString;
+                                    const normalizedValue = shouldForceString
+                                      ? value.slice(1)
+                                      : value;
+                                    const expectedSourceType = nextForcedString
+                                      ? 'string'
+                                      : item.expectedType;
+                                    let nextInference = inferScalarValue(
+                                      normalizedValue,
+                                      nextForcedString,
+                                      expectedSourceType
+                                    );
+                                    let nextExpectedType: AttributeScalarType | null;
+                                    if (!nextForcedString && item.expectedType && nextInference.error) {
+                                      const relaxedInference = inferScalarValue(
+                                        normalizedValue,
+                                        false,
+                                        null
+                                      );
+                                      if (!relaxedInference.error) {
+                                        nextInference = relaxedInference;
+                                        nextExpectedType =
+                                          relaxedInference.normalizedValue === null
+                                            ? null
+                                            : relaxedInference.type;
+                                      } else {
+                                        nextExpectedType = item.expectedType;
+                                      }
+                                    } else {
+                                      nextExpectedType = nextForcedString
+                                        ? 'string'
+                                        : item.expectedType ??
+                                          (nextInference.normalizedValue === null
+                                            ? null
+                                            : nextInference.type);
+                                    }
+                                    return {
+                                      ...item,
+                                      value: normalizedValue,
+                                      forcedString: nextForcedString,
+                                      expectedType: nextExpectedType
+                                    };
+                                  })
+                                );
+                                setError(null);
+                              }}
+                              onBlur={() => {
+                                updateAttributeEntries((previous) =>
+                                  previous.map((item) => {
+                                    if (item.id !== attribute.id) {
+                                      return item;
+                                    }
+                                    if (item.forcedString) {
+                                      return item;
+                                    }
+                                    const nextInference = inferScalarValue(
+                                      item.value,
+                                      false,
+                                      item.expectedType
+                                    );
+                                    const nextExpectedType =
+                                      item.expectedType ??
+                                      (nextInference.normalizedValue === null
+                                        ? null
+                                        : nextInference.type);
+                                    return {
+                                      ...item,
+                                      value: nextInference.canonicalText,
+                                      expectedType: nextExpectedType
+                                    };
+                                  })
+                                );
+                              }}
+                              className={`rounded-md border px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 ${
+                                inference.error ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : 'border-slate-300'
+                              }`}
+                              placeholder="Attribute value"
+                            />
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-500">
+                                {attribute.forcedString
+                                  ? 'String literal'
+                                  : `Detected ${inference.type}${
+                                      canonicalHint ? ` → ${canonicalHint}` : ''
+                                    }`}
+                              </span>
+                              {inference.error ? (
+                                <span className="text-xs font-medium text-red-600">
+                                  {inference.error}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateAttributeEntries((previous) =>
+                                  previous.filter((item) => item.id !== attribute.id)
+                                );
+                                setError(null);
+                              }}
+                              disabled={isFormDisabled}
+                              className="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-transparent"
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
@@ -395,10 +782,7 @@ export function ItemFormModal({
                 <button
                   type="button"
                   onClick={() => {
-                    setAttributeEntries((previous) => [
-                      ...previous,
-                      { id: createUniqueId(), key: '', value: '' }
-                    ]);
+                    updateAttributeEntries((previous) => [...previous, createBlankEntry()]);
                     setError(null);
                   }}
                   disabled={isFormDisabled}
