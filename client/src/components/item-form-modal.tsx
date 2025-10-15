@@ -376,8 +376,16 @@ export function ItemFormModal({
     for (const attribute of attributeEntries) {
       const key = attribute.key.trim();
       if (!key) {
+        if (!attribute.value.trim()) {
+          continue;
+        }
         setError('Attribute name cannot be empty.');
         return;
+      }
+
+      const trimmedValue = attribute.value.trim();
+      if (!trimmedValue.length && !attribute.forcedString) {
+        continue;
       }
 
       const inference = inferScalarValue(
