@@ -2,16 +2,20 @@ import { FormEvent, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   useCreateProjectMutation,
+  useDeleteProjectMutation,
   useProjectsQuery
 } from '../query/projects';
 
 function ProjectsPage() {
   const { data, isLoading, isError, error } = useProjectsQuery();
   const createProjectMutation = useCreateProjectMutation();
+  const deleteProjectMutation = useDeleteProjectMutation();
 
   const navigate = useNavigate();
   const [newProjectName, setNewProjectName] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [pendingDeletionId, setPendingDeletionId] = useState<string | null>(null);
 
   const projects = data?.data ?? [];
 
@@ -46,6 +50,27 @@ function ProjectsPage() {
       navigate(`/projects/${project.id}`);
     } catch (submitError) {
       setCreateError((submitError as Error).message);
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string, projectName: string) => {
+    const confirmed = window.confirm(
+      `Delete project "${projectName}"? This will remove all items and their prices, but any saved URLs will be kept.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleteError(null);
+    setPendingDeletionId(projectId);
+
+    try {
+      await deleteProjectMutation.mutateAsync(projectId);
+    } catch (submitError) {
+      setDeleteError((submitError as Error).message);
+    } finally {
+      setPendingDeletionId(null);
     }
   };
 
@@ -100,6 +125,11 @@ function ProjectsPage() {
         {listError ? (
           <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{listError}</p>
         ) : null}
+        {deleteError ? (
+          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+            {deleteError}
+          </p>
+        ) : null}
 
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -116,6 +146,9 @@ function ProjectsPage() {
                 </th>
                 <th className="px-4 py-3 text-left font-medium uppercase tracking-wide text-slate-500">
                   Updated
+                </th>
+                <th className="px-4 py-3 text-right font-medium uppercase tracking-wide text-slate-500">
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -141,6 +174,18 @@ function ProjectsPage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">
                     {new Date(project.updatedAt).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-red-100 disabled:text-red-300"
+                      onClick={() => handleDeleteProject(project.id, project.name)}
+                      disabled={deleteProjectMutation.isPending}
+                    >
+                      {deleteProjectMutation.isPending && pendingDeletionId === project.id
+                        ? 'Deleting…'
+                        : 'Delete'}
+                    </button>
                   </td>
                 </tr>
               ))}

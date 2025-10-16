@@ -120,3 +120,7 @@ export const updateProject = async (
 
   return response.data;
 };
+
+export const deleteProject = async (projectId: string): Promise<void> => {
+  await apiFetch<void>(`/projects/${projectId}`, { method: 'DELETE' });
+};

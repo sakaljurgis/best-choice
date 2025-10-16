@@ -188,8 +188,19 @@ export const updateProject = async (
 };
 
 export const deleteProject = async (id: string): Promise<boolean> => {
+  // Remove dependent items and prices explicitly while leaving shared URLs untouched.
   const result = await query(
     `
+      WITH deleted_prices AS (
+        DELETE FROM item_prices ip
+        USING items i
+        WHERE ip.item_id = i.id
+          AND i.project_id = $1
+      ),
+      deleted_items AS (
+        DELETE FROM items
+        WHERE project_id = $1
+      )
       DELETE FROM projects
       WHERE id = $1
     `,

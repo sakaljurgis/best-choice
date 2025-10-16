@@ -3,6 +3,7 @@ import {
   fetchProject,
   fetchProjects,
   updateProject,
+  deleteProject,
   type CreateProjectPayload,
   type ProjectsListResponse,
   type UpdateProjectPayload
@@ -113,6 +114,19 @@ export const useUpdateItemMutation = (projectId: string | undefined) => {
       }
       queryClient.invalidateQueries({ queryKey: projectsKeys.items(projectId) });
       queryClient.invalidateQueries({ queryKey: projectsKeys.detail(projectId) });
+    }
+  });
+};
+
+export const useDeleteProjectMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (projectId: string) => deleteProject(projectId),
+    onSuccess: (_, projectId) => {
+      queryClient.invalidateQueries({ queryKey: projectsKeys.list() });
+      queryClient.removeQueries({ queryKey: projectsKeys.detail(projectId) });
+      queryClient.removeQueries({ queryKey: projectsKeys.items(projectId) });
     }
   });
 };
