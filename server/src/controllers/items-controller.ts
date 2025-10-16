@@ -181,12 +181,22 @@ export const importItemFromUrl = async (req: Request, res: Response) => {
     lastPathSegment?.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim() ?? 'Item';
   const model = cleanedSegment.length ? cleanedSegment : 'Imported Item';
 
+  const imageSeedBase = cleanedSegment.length
+    ? cleanedSegment.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    : manufacturer.toLowerCase();
+  const normalizedSeed = imageSeedBase.length ? imageSeedBase : 'imported-item';
+  const imageSeeds = Array.from({ length: 3 }, (_, index) => `${normalizedSeed}-${index + 1}`);
+  const images = imageSeeds.map((seed) => ({
+    url: `https://picsum.photos/seed/${encodeURIComponent(seed)}/800/600`
+  }));
+
   const attributes: Record<string, unknown> = {
     originUrl: url,
     importedAt: new Date().toISOString(),
     condition: 'New',
     availability: 'In stock',
     dpi: 1200,
+    imageCount: images.length
   };
 
   if (hostname) {
@@ -198,7 +208,8 @@ export const importItemFromUrl = async (req: Request, res: Response) => {
       manufacturer,
       model,
       note: null,
-      attributes
+      attributes,
+      images
     }
   });
 };
