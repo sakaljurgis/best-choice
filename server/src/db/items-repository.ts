@@ -1,5 +1,7 @@
 import type { Item, ItemPriceSummary, ItemStatus } from '@shared/models/item';
+import type { ItemImage } from '@shared/models/item-image';
 import { query } from './pool.js';
+import { listImagesByItemId } from './images-repository.js';
 
 const itemColumns = `
   i.id,
@@ -7,6 +9,7 @@ const itemColumns = `
   i.manufacturer,
   i.model,
   i.source_url_id,
+  i.default_image_id,
   i.status,
   i.note,
   i.attributes,
@@ -34,6 +37,7 @@ export interface ItemRow {
   manufacturer: string | null;
   model: string;
   source_url_id: string | null;
+  default_image_id: string | null;
   status: ItemStatus;
   note: string | null;
   attributes: Record<string, unknown>;
@@ -57,7 +61,7 @@ export interface ItemRow {
 
 export type ItemRecord = Item;
 
-const mapItemRow = (row: ItemRow): ItemRecord => {
+const mapItemRow = (row: ItemRow, images?: ItemImage[]): ItemRecord => {
   const priceCount = row.price_count ?? 0;
   const priceSummary: ItemPriceSummary | null =
     priceCount > 0 && row.price_min_amount !== null && row.price_max_amount !== null
@@ -86,13 +90,15 @@ const mapItemRow = (row: ItemRow): ItemRecord => {
     manufacturer: row.manufacturer,
     model: row.model,
     sourceUrlId: row.source_url_id,
+    defaultImageId: row.default_image_id,
     sourceUrl: row.source_url,
     status: row.status,
     note: row.note,
     attributes: row.attributes ?? {},
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
-    priceSummary
+    priceSummary,
+    images: images && images.length ? images : images ? [] : undefined
   };
 };
 
@@ -148,7 +154,7 @@ export const listItems = async (options: ListItemsOptions): Promise<ItemRecord[]
     params
   );
 
-  return result.rows.map(mapItemRow);
+  return result.rows.map((row) => mapItemRow(row));
 };
 
 export interface CreateItemParams {
@@ -156,6 +162,7 @@ export interface CreateItemParams {
   manufacturer: string | null;
   model: string;
   sourceUrlId: string | null;
+  defaultImageId: string | null;
   status: ItemStatus;
   note: string | null;
   attributes: Record<string, unknown>;
@@ -169,11 +176,12 @@ export const createItem = async (params: CreateItemParams): Promise<ItemRecord> 
         manufacturer,
         model,
         source_url_id,
+        default_image_id,
         status,
         note,
         attributes
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id
     `,
     [
@@ -181,6 +189,7 @@ export const createItem = async (params: CreateItemParams): Promise<ItemRecord> 
       params.manufacturer,
       params.model,
       params.sourceUrlId,
+      params.defaultImageId,
       params.status,
       params.note,
       params.attributes
@@ -233,13 +242,16 @@ export const getItemById = async (id: string): Promise<ItemRecord | null> => {
     return null;
   }
 
-  return mapItemRow(result.rows[0]);
+  const images = await listImagesByItemId(id);
+
+  return mapItemRow(result.rows[0], images);
 };
 
 export interface UpdateItemParams {
   manufacturer?: string | null;
   model?: string;
   sourceUrlId?: string | null;
+  defaultImageId?: string | null;
   status?: ItemStatus;
   note?: string | null;
   attributes?: Record<string, unknown>;
@@ -265,6 +277,11 @@ export const updateItem = async (
   if (params.sourceUrlId !== undefined) {
     values.push(params.sourceUrlId);
     fields.push(`source_url_id = $${values.length}`);
+  }
+
+  if (params.defaultImageId !== undefined) {
+    values.push(params.defaultImageId);
+    fields.push(`default_image_id = $${values.length}`);
   }
 
   if (params.status !== undefined) {

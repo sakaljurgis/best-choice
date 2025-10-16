@@ -6,6 +6,7 @@ import {
   listItems as listItemsRepo,
   updateItem as updateItemRepo
 } from '../db/items-repository.js';
+import { findImageById } from '../db/images-repository.js';
 import { HttpError } from '../errors/http-error.js';
 import { resolveUrlId } from './url-helpers.js';
 import { parsePaginationParams, parseUuid } from '../validation/common.js';
@@ -53,6 +54,7 @@ export const createItem = async (req: Request, res: Response) => {
       manufacturer: payload.manufacturer,
       model: payload.model,
       sourceUrlId,
+      defaultImageId: payload.defaultImageId,
       status: payload.status,
       note: payload.note,
       attributes: payload.attributes
@@ -95,10 +97,28 @@ export const updateItem = async (req: Request, res: Response) => {
     });
   }
 
+  let defaultImageId: string | null | undefined;
+  if ('defaultImageId' in payload) {
+    defaultImageId = payload.defaultImageId ?? null;
+    if (defaultImageId !== null) {
+      const image = await findImageById(defaultImageId);
+      if (!image) {
+        throw new HttpError(404, 'Default image not found');
+      }
+      if (image.itemId !== itemId) {
+        throw new HttpError(
+          400,
+          'defaultImageId must reference an image belonging to this item'
+        );
+      }
+    }
+  }
+
   const item = await updateItemRepo(itemId, {
     manufacturer: payload.manufacturer,
     model: payload.model,
     sourceUrlId,
+    defaultImageId,
     status: payload.status,
     note: payload.note,
     attributes: payload.attributes

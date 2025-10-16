@@ -16,6 +16,8 @@ export interface ItemPriceSummary {
   usedHasMixedCurrency: boolean;
 }
 
+import type { ItemImage } from './item-image';
+
 export interface Item {
   id: string;
   projectId: string;
@@ -23,10 +25,12 @@ export interface Item {
   model: string;
   sourceUrlId: string | null;
   sourceUrl: string | null;
+  defaultImageId: string | null;
   status: ItemStatus;
   note: string | null;
   attributes: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   priceSummary: ItemPriceSummary | null;
+  images?: ItemImage[];
 }

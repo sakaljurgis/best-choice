@@ -1,7 +1,46 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CreateItemPayload, ImportedItemData } from '../api/items';
 import type { AttributeScalarType } from '../utils/attribute-values';
 import { inferScalarValue } from '../utils/attribute-values';
+
+interface ImageEntry {
+  id: string;
+  existingId: string | null;
+  url: string;
+  hasPreviewError: boolean;
+}
+
+const IMAGE_URL_MAX_LENGTH = 2048;
+
+const createUniqueId = () => Math.random().toString(36).slice(2);
+
+const createBlankImageEntry = (): ImageEntry => ({
+  id: createUniqueId(),
+  existingId: null,
+  url: '',
+  hasPreviewError: false
+});
+
+const isValidImageUrl = (value: string): boolean => {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+export interface ItemFormSubmitPayload {
+  itemPayload: CreateItemPayload;
+  imageChanges: {
+    toCreate: Array<{ id: string; url: string }>;
+    toDelete: string[];
+    defaultSelection:
+      | { type: 'existing'; id: string }
+      | { type: 'new'; id: string }
+      | null;
+  };
+}
 
 export interface ItemFormModalProps {
   isOpen: boolean;
@@ -9,7 +48,7 @@ export interface ItemFormModalProps {
   initialUrl: string | null;
   onClose: () => void;
   onSuccess: () => void;
-  onSubmit: (payload: CreateItemPayload) => Promise<unknown>;
+  onSubmit: (payload: ItemFormSubmitPayload) => Promise<unknown>;
   isSubmitting: boolean;
   projectAttributes: string[];
   initialData: ImportedItemData | null;
@@ -25,8 +64,6 @@ interface AttributeEntry {
   expectedType: AttributeScalarType | null;
   isArrayMember: boolean;
 }
-
-const createUniqueId = () => Math.random().toString(36).slice(2);
 
 const createBlankEntry = (key = '', isArrayMember = false): AttributeEntry => ({
   id: createUniqueId(),
@@ -308,7 +345,11 @@ export function ItemFormModal({
   const [note, setNote] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [attributeEntries, setAttributeEntries] = useState<AttributeEntry[]>([]);
+  const [imageEntries, setImageEntries] = useState<ImageEntry[]>([]);
+  const [selectedDefaultImageId, setSelectedDefaultImageId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const initialImageIdsRef = useRef<Set<string>>(new Set());
+  const initialImageUrlsRef = useRef<Map<string, string>>(new Map());
   const isFormDisabled = isSubmitting || isInitialDataLoading;
   const trackedAttributeMetadata = useMemo(
     () => computeTrackedKeyMetadata(projectAttributes),
@@ -322,6 +363,13 @@ export function ItemFormModal({
       );
     },
     [trackedAttributeMetadata]
+  );
+
+  const updateImageEntries = useCallback(
+    (updater: (previous: ImageEntry[]) => ImageEntry[]) => {
+      setImageEntries((previous) => updater(previous));
+    },
+    []
   );
 
   useEffect(() => {
@@ -374,6 +422,37 @@ export function ItemFormModal({
         trackedAttributeMetadata
       )
     );
+
+    const existingImageIds = new Set<string>();
+    const existingImageUrlMap = new Map<string, string>();
+    const initialImages = initialData?.images ?? [];
+    const nextImageEntries: ImageEntry[] = initialImages.map((image) => {
+      const existingId = image.id ?? null;
+      const entryId = existingId ?? createUniqueId();
+      if (existingId) {
+        existingImageIds.add(existingId);
+        existingImageUrlMap.set(existingId, image.url.trim());
+      }
+      return {
+        id: entryId,
+        existingId,
+        url: image.url,
+        hasPreviewError: false
+      };
+    });
+
+    initialImageIdsRef.current = existingImageIds;
+    initialImageUrlsRef.current = existingImageUrlMap;
+    setImageEntries(nextImageEntries);
+
+    if (initialData?.defaultImageId) {
+      const entryWithDefault = nextImageEntries.find(
+        (entry) => entry.existingId === initialData.defaultImageId
+      );
+      setSelectedDefaultImageId(entryWithDefault ? entryWithDefault.id : null);
+    } else {
+      setSelectedDefaultImageId(null);
+    }
   }, [isOpen, initialUrl, initialData, projectAttributes, trackedAttributeMetadata]);
 
   useEffect(() => {
@@ -388,6 +467,9 @@ export function ItemFormModal({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  const initialDataStatusLabel =
+    mode === 'edit' ? 'Loading item details…' : 'Importing item details…';
 
   if (!isOpen) {
     return null;
@@ -476,6 +558,70 @@ export function ItemFormModal({
       }
     });
 
+    const normalizedImages = imageEntries.map((entry) => ({
+      ...entry,
+      url: entry.url.trim()
+    }));
+
+    const imagesToCreateMap = new Map<string, string>();
+    const imagesToDeleteSet = new Set(initialImageIdsRef.current);
+    const existingImageUrlMap = initialImageUrlsRef.current;
+
+    for (const image of normalizedImages) {
+      if (!image.url.length) {
+        continue;
+      }
+
+      if (image.url.length > IMAGE_URL_MAX_LENGTH) {
+        setError('Image URL must be 2048 characters or fewer.');
+        return;
+      }
+
+      if (!isValidImageUrl(image.url)) {
+        setError('Each image must use a valid http(s) URL.');
+        return;
+      }
+
+      if (image.existingId) {
+        const initialUrl = existingImageUrlMap.get(image.existingId) ?? '';
+        if (image.url === initialUrl) {
+          imagesToDeleteSet.delete(image.existingId);
+        } else {
+          imagesToCreateMap.set(image.id, image.url);
+        }
+      } else {
+        imagesToCreateMap.set(image.id, image.url);
+      }
+    }
+
+    let defaultSelection: ItemFormSubmitPayload['imageChanges']['defaultSelection'] =
+      null;
+
+    if (selectedDefaultImageId) {
+      const selectedEntry = normalizedImages.find(
+        (entry) => entry.id === selectedDefaultImageId
+      );
+      if (selectedEntry) {
+        if (
+          selectedEntry.existingId &&
+          !imagesToDeleteSet.has(selectedEntry.existingId) &&
+          selectedEntry.url.length
+        ) {
+          defaultSelection = { type: 'existing', id: selectedEntry.existingId };
+        } else if (selectedEntry.url.length) {
+          imagesToCreateMap.set(selectedEntry.id, selectedEntry.url);
+          defaultSelection = { type: 'new', id: selectedEntry.id };
+        } else {
+          defaultSelection = null;
+        }
+      }
+    }
+
+    const imagesToCreate = Array.from(imagesToCreateMap.entries()).map(
+      ([id, url]) => ({ id, url })
+    );
+    const imagesToDelete = Array.from(imagesToDeleteSet);
+
     try {
       const payload: CreateItemPayload = {
         manufacturer: manufacturer.trim() ? manufacturer.trim() : null,
@@ -489,7 +635,14 @@ export function ItemFormModal({
         payload.status = 'active';
       }
 
-      await onSubmit(payload);
+      await onSubmit({
+        itemPayload: payload,
+        imageChanges: {
+          toCreate: imagesToCreate,
+          toDelete: imagesToDelete,
+          defaultSelection
+        }
+      });
       onSuccess();
     } catch (submitError) {
       setError((submitError as Error).message);
@@ -560,7 +713,7 @@ export function ItemFormModal({
                   d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
                 />
               </svg>
-              <span>Importing item details…</span>
+              <span>{initialDataStatusLabel}</span>
             </div>
           ) : null}
 
@@ -835,6 +988,174 @@ export function ItemFormModal({
                   Add Attribute
                 </button>
               </div>
+            </div>
+
+            <div className="md:col-span-2 flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-slate-700">Images</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateImageEntries((previous) => [
+                      ...previous,
+                      createBlankImageEntry()
+                    ]);
+                    setError(null);
+                  }}
+                  disabled={isFormDisabled}
+                  className="rounded-md border border-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-transparent"
+                >
+                  Add Image
+                </button>
+              </div>
+              {imageEntries.length ? (
+                <div className="flex flex-col gap-4">
+                  {imageEntries.map((image) => {
+                    const trimmedUrl = image.url.trim();
+                    const isDefault = selectedDefaultImageId === image.id;
+                    const cardHighlight = isDefault
+                      ? 'border-blue-400 shadow-md shadow-blue-100'
+                      : 'border-slate-200';
+
+                    return (
+                      <div
+                        key={image.id}
+                        className={`rounded-lg border ${cardHighlight} bg-white p-4 shadow-sm`}
+                      >
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:gap-5">
+                          <div className="flex h-28 w-full items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-50 md:h-24 md:w-24">
+                            {trimmedUrl ? (
+                              image.hasPreviewError ? (
+                                <span className="px-2 text-center text-xs text-slate-500">
+                                  Preview unavailable
+                                </span>
+                              ) : (
+                                <img
+                                  src={trimmedUrl}
+                                  alt="Item preview"
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                  onError={() => {
+                                    updateImageEntries((previous) =>
+                                      previous.map((entry) =>
+                                        entry.id === image.id
+                                          ? { ...entry, hasPreviewError: true }
+                                          : entry
+                                      )
+                                    );
+                                  }}
+                                  onLoad={() => {
+                                    updateImageEntries((previous) =>
+                                      previous.map((entry) =>
+                                        entry.id === image.id && entry.hasPreviewError
+                                          ? { ...entry, hasPreviewError: false }
+                                          : entry
+                                      )
+                                    );
+                                  }}
+                                />
+                              )
+                            ) : (
+                              <span className="px-3 text-center text-xs text-slate-500">
+                                Add an image URL to preview it here.
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex-1 space-y-3">
+                            <input
+                              type="url"
+                              value={image.url}
+                              disabled={isFormDisabled}
+                              onChange={(event) => {
+                                const nextValue = event.target.value;
+                                updateImageEntries((previous) =>
+                                  previous.map((entry) =>
+                                    entry.id === image.id
+                                      ? {
+                                          ...entry,
+                                          url: nextValue,
+                                          hasPreviewError: false
+                                        }
+                                      : entry
+                                  )
+                                );
+                                if (
+                                  selectedDefaultImageId === image.id &&
+                                  !nextValue.trim()
+                                ) {
+                                  setSelectedDefaultImageId(null);
+                                }
+                                setError(null);
+                              }}
+                              placeholder="https://example.com/photo.jpg"
+                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100"
+                            />
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                                <input
+                                  type="radio"
+                                  name="default-image"
+                                  value={image.id}
+                                  checked={isDefault}
+                                  disabled={isFormDisabled || !trimmedUrl.length}
+                                  onChange={() => {
+                                    if (!trimmedUrl.length) {
+                                      setSelectedDefaultImageId(null);
+                                      return;
+                                    }
+                                    setSelectedDefaultImageId(image.id);
+                                    setError(null);
+                                  }}
+                                  className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span>Use as default image</span>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateImageEntries((previous) =>
+                                    previous.filter((entry) => entry.id !== image.id)
+                                  );
+                                  if (selectedDefaultImageId === image.id) {
+                                    setSelectedDefaultImageId(null);
+                                  }
+                                  setError(null);
+                                }}
+                                disabled={isFormDisabled}
+                                className="rounded-md border border-red-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-transparent"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400">
+                  No images added yet. Use the button above to attach product photos.
+                </p>
+              )}
+              {selectedDefaultImageId ? (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDefaultImageId(null);
+                      setError(null);
+                    }}
+                    disabled={isFormDisabled}
+                    className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-transparent"
+                  >
+                    Clear Default Image
+                  </button>
+                </div>
+              ) : null}
+              <p className="text-xs text-slate-500">
+                Previews load directly from the provided URLs. Broken previews will not block saving.
+              </p>
             </div>
 
             <div className="md:col-span-2 flex items-center justify-between">

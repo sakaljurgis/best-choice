@@ -4,6 +4,8 @@ import { migration as createProjectsTable } from './0002-create-projects-table.j
 import { migration as createUrlsTable } from './0003-create-urls-table.js';
 import { migration as createItemsTable } from './0004-create-items-table.js';
 import { migration as createItemPricesTable } from './0005-create-item-prices-table.js';
+import { migration as createImagesTable } from './0006-create-images-table.js';
+import { migration as addDefaultImageToItems } from './0007-add-default-image-to-items.js';
 
 export const migrations: Migration[] = [
   enablePgvector,
@@ -11,4 +13,6 @@ export const migrations: Migration[] = [
   createUrlsTable,
   createItemsTable,
   createItemPricesTable,
+  createImagesTable,
+  addDefaultImageToItems,
 ];

@@ -45,6 +45,7 @@ export interface CreateItemPayload {
   attributes?: Record<string, unknown>;
   sourceUrl?: string | null;
   sourceUrlId?: string | null;
+  defaultImageId?: string | null;
 }
 
 interface SingleItemResponse {
@@ -57,6 +58,8 @@ export interface ImportedItemData {
   note: string | null;
   attributes: Record<string, unknown>;
   sourceUrl?: string | null;
+  images?: Array<{ id?: string; url: string }>;
+  defaultImageId?: string | null;
 }
 
 export const createItem = async (
@@ -74,7 +77,9 @@ export const createItem = async (
         note: payload.note ?? null,
         attributes: payload.attributes ?? {},
         sourceUrl: payload.sourceUrl ?? null,
-        sourceUrlId: payload.sourceUrlId ?? null
+        sourceUrlId: payload.sourceUrlId ?? null,
+        defaultImageId:
+          payload.defaultImageId === undefined ? null : payload.defaultImageId
       }
     }
   );
@@ -109,6 +114,7 @@ export interface UpdateItemPayload {
   attributes?: Record<string, unknown>;
   sourceUrl?: string | null;
   sourceUrlId?: string | null;
+  defaultImageId?: string | null;
 }
 
 export const updateItem = async (
@@ -145,10 +151,19 @@ export const updateItem = async (
     body.sourceUrlId = payload.sourceUrlId ?? null;
   }
 
+  if ('defaultImageId' in payload) {
+    body.defaultImageId = payload.defaultImageId ?? null;
+  }
+
   const response = await apiFetch<SingleItemResponse>(`/items/${itemId}`, {
     method: 'PATCH',
     body
   });
 
+  return response.data;
+};
+
+export const fetchItem = async (itemId: string): Promise<Item> => {
+  const response = await apiFetch<SingleItemResponse>(`/items/${itemId}`);
   return response.data;
 };

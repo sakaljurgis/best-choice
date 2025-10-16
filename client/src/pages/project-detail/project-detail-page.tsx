@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { Item } from '@shared/models/item';
+import { useQueryClient } from '@tanstack/react-query';
 import {
+  projectsKeys,
   useCreateItemMutation,
   useUpdateItemMutation,
   useProjectItemsQuery,
@@ -9,12 +11,13 @@ import {
   useUpdateProjectMutation
 } from '../../query/projects';
 import {
+  fetchItem,
   importItemFromUrl,
-  type CreateItemPayload,
   type ImportedItemData,
   type UpdateItemPayload
 } from '../../api/items';
-import { ItemFormModal } from '../../components/item-form-modal';
+import { createItemImage, deleteItemImage } from '../../api/images';
+import { ItemFormModal, type ItemFormSubmitPayload } from '../../components/item-form-modal';
 import { ProjectHeader } from './project-header';
 import { ProjectDescriptionSection } from './project-description-section';
 import { TrackedAttributesSection } from './tracked-attributes-section';
@@ -27,6 +30,7 @@ export function ProjectDetailPage() {
   const createItemMutation = useCreateItemMutation(projectId);
   const updateItemMutation = useUpdateItemMutation(projectId);
   const updateProjectMutation = useUpdateProjectMutation(projectId);
+  const queryClient = useQueryClient();
 
   const [quickUrl, setQuickUrl] = useState('');
   const [quickError, setQuickError] = useState<string | null>(null);
@@ -37,7 +41,12 @@ export function ProjectDetailPage() {
   const [isImportingItem, setIsImportingItem] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const importRequestIdRef = useRef(0);
+  const editRequestIdRef = useRef(0);
   const [itemBeingEdited, setItemBeingEdited] = useState<Item | null>(null);
+  const [editItemInitialData, setEditItemInitialData] = useState<ImportedItemData | null>(null);
+  const [isLoadingItemDetails, setIsLoadingItemDetails] = useState(false);
+  const [editItemError, setEditItemError] = useState<string | null>(null);
+  const [isSavingItem, setIsSavingItem] = useState(false);
 
   const project = projectQuery.data;
   const items = useMemo(() => itemsQuery.data?.data ?? [], [itemsQuery.data]);
@@ -97,7 +106,11 @@ export function ProjectDetailPage() {
     setQuickError(null);
     setImportError(null);
     setImportedItemData(null);
+    setEditItemInitialData(null);
+    setEditItemError(null);
+    setIsLoadingItemDetails(false);
     setItemBeingEdited(null);
+    editRequestIdRef.current += 1;
 
     const requestId = importRequestIdRef.current + 1;
     importRequestIdRef.current = requestId;
@@ -134,18 +147,74 @@ export function ProjectDetailPage() {
     setImportedItemData(null);
     setIsImportingItem(false);
     importRequestIdRef.current += 1;
+    editRequestIdRef.current += 1;
     setItemBeingEdited(null);
+    setEditItemInitialData(null);
+    setEditItemError(null);
+    setIsLoadingItemDetails(false);
+    setIsSavingItem(false);
     openItemModal('manual', quickUrl.trim() || null);
   };
 
-  const handleEditItem = (item: Item) => {
+  const handleEditItem = async (item: Item) => {
     setQuickError(null);
     setImportError(null);
     setImportedItemData(null);
     setIsImportingItem(false);
     importRequestIdRef.current += 1;
+    editRequestIdRef.current += 1;
+    setEditItemError(null);
+    setIsSavingItem(false);
+    setIsLoadingItemDetails(true);
+    const initialImages =
+      item.images?.map((image) => ({ id: image.id, url: image.url })) ?? [];
+    setEditItemInitialData({
+      manufacturer: item.manufacturer,
+      model: item.model,
+      note: item.note,
+      attributes: item.attributes ?? {},
+      sourceUrl: item.sourceUrl ?? null,
+      images: initialImages,
+      defaultImageId: item.defaultImageId ?? null
+    });
     setItemBeingEdited(item);
     openItemModal('edit', item.sourceUrl ?? null);
+
+    const requestId = editRequestIdRef.current;
+
+    try {
+      const fullItem = await fetchItem(item.id);
+      if (editRequestIdRef.current !== requestId) {
+        return;
+      }
+      setItemBeingEdited(fullItem);
+      setEditItemInitialData({
+        manufacturer: fullItem.manufacturer,
+        model: fullItem.model,
+        note: fullItem.note,
+        attributes: fullItem.attributes ?? {},
+        sourceUrl: fullItem.sourceUrl ?? null,
+        images:
+          fullItem.images?.map((image) => ({
+            id: image.id,
+            url: image.url
+          })) ?? [],
+        defaultImageId: fullItem.defaultImageId ?? null
+      });
+    } catch (error) {
+      if (editRequestIdRef.current !== requestId) {
+        return;
+      }
+      const message =
+        error instanceof Error && error.message.trim().length
+          ? error.message.trim()
+          : 'Failed to load item details.';
+      setEditItemError(message);
+    } finally {
+      if (editRequestIdRef.current === requestId) {
+        setIsLoadingItemDetails(false);
+      }
+    }
   };
 
   const handleModalClose = () => {
@@ -155,7 +224,12 @@ export function ProjectDetailPage() {
     setImportedItemData(null);
     setIsImportingItem(false);
     importRequestIdRef.current += 1;
+    editRequestIdRef.current += 1;
     setItemBeingEdited(null);
+    setEditItemInitialData(null);
+    setEditItemError(null);
+    setIsLoadingItemDetails(false);
+    setIsSavingItem(false);
   };
 
   const handleModalSuccess = () => {
@@ -168,7 +242,12 @@ export function ProjectDetailPage() {
     setImportedItemData(null);
     setIsImportingItem(false);
     importRequestIdRef.current += 1;
+    editRequestIdRef.current += 1;
     setItemBeingEdited(null);
+    setEditItemInitialData(null);
+    setEditItemError(null);
+    setIsLoadingItemDetails(false);
+    setIsSavingItem(false);
   };
 
   const handleDescriptionUpdate = async (description: string | null) => {
@@ -179,24 +258,126 @@ export function ProjectDetailPage() {
     await updateProjectMutation.mutateAsync({ attributes });
   };
 
-  const handleUpdateItemSubmit = (payload: CreateItemPayload) => {
-    if (!itemBeingEdited) {
-      return Promise.reject(new Error('No item selected for editing'));
+  const handleCreateItemSubmit = async (payload: ItemFormSubmitPayload) => {
+    if (!projectId) {
+      throw new Error('Project identifier is missing. Reload the page and try again.');
     }
 
-    const updatePayload: UpdateItemPayload = {
-      manufacturer: payload.manufacturer,
-      model: payload.model,
-      note: payload.note,
-      attributes: payload.attributes,
-      sourceUrl: payload.sourceUrl,
-      sourceUrlId: payload.sourceUrlId
-    };
+    setIsSavingItem(true);
 
-    return updateItemMutation.mutateAsync({
-      itemId: itemBeingEdited.id,
-      payload: updatePayload
-    });
+    try {
+      const createdItem = await createItemMutation.mutateAsync(payload.itemPayload);
+
+      const createdImageIds = new Map<string, string>();
+      if (payload.imageChanges.toCreate.length) {
+        await Promise.all(
+          payload.imageChanges.toCreate.map(async (image) => {
+            const created = await createItemImage(createdItem.id, image.url);
+            createdImageIds.set(image.id, created.id);
+          })
+        );
+      }
+
+      const { defaultSelection } = payload.imageChanges;
+      if (defaultSelection) {
+        let resolvedDefaultId: string | null = null;
+        if (defaultSelection.type === 'existing') {
+          resolvedDefaultId = defaultSelection.id;
+        } else {
+          const mappedId = createdImageIds.get(defaultSelection.id);
+          if (!mappedId) {
+            throw new Error('Failed to determine the default image.');
+          }
+          resolvedDefaultId = mappedId;
+        }
+
+        if (resolvedDefaultId) {
+          await updateItemMutation.mutateAsync({
+            itemId: createdItem.id,
+            payload: { defaultImageId: resolvedDefaultId }
+          });
+        }
+      }
+
+      await queryClient.invalidateQueries({ queryKey: projectsKeys.items(projectId) });
+      await queryClient.invalidateQueries({ queryKey: projectsKeys.detail(projectId) });
+    } finally {
+      setIsSavingItem(false);
+    }
+  };
+
+  const handleUpdateItemSubmit = async (payload: ItemFormSubmitPayload) => {
+    if (!itemBeingEdited) {
+      throw new Error('No item selected for editing');
+    }
+
+    setIsSavingItem(true);
+
+    try {
+      const createdImageIds = new Map<string, string>();
+
+      if (payload.imageChanges.toCreate.length) {
+        await Promise.all(
+          payload.imageChanges.toCreate.map(async (image) => {
+            const created = await createItemImage(itemBeingEdited.id, image.url);
+            createdImageIds.set(image.id, created.id);
+          })
+        );
+      }
+
+      const { defaultSelection, toDelete } = payload.imageChanges;
+      let resolvedDefaultId: string | null | undefined;
+
+      if (defaultSelection) {
+        if (defaultSelection.type === 'existing') {
+          resolvedDefaultId = defaultSelection.id;
+        } else {
+          const mappedId = createdImageIds.get(defaultSelection.id);
+          if (!mappedId) {
+            throw new Error('Failed to determine the default image.');
+          }
+          resolvedDefaultId = mappedId;
+        }
+      } else if (itemBeingEdited.defaultImageId) {
+        resolvedDefaultId = null;
+      }
+
+      const updatePayload: UpdateItemPayload = {
+        manufacturer: payload.itemPayload.manufacturer,
+        model: payload.itemPayload.model,
+        note: payload.itemPayload.note,
+        attributes: payload.itemPayload.attributes,
+        sourceUrl: payload.itemPayload.sourceUrl,
+        sourceUrlId: payload.itemPayload.sourceUrlId
+      };
+
+      if (resolvedDefaultId !== undefined) {
+        updatePayload.defaultImageId = resolvedDefaultId;
+      }
+
+      await updateItemMutation.mutateAsync({
+        itemId: itemBeingEdited.id,
+        payload: updatePayload
+      });
+
+      if (toDelete.length) {
+        const protectedId =
+          typeof resolvedDefaultId === 'string' ? resolvedDefaultId : null;
+        const targets = protectedId
+          ? toDelete.filter((id) => id !== protectedId)
+          : toDelete;
+        if (targets.length) {
+          await Promise.all(targets.map((id) => deleteItemImage(id)));
+        }
+      }
+
+      if (projectId) {
+        await queryClient.invalidateQueries({ queryKey: projectsKeys.items(projectId) });
+        await queryClient.invalidateQueries({ queryKey: projectsKeys.detail(projectId) });
+      }
+    } finally {
+      setIsSavingItem(false);
+    }
   };
 
   if (!projectId) {
@@ -225,27 +406,32 @@ export function ProjectDetailPage() {
   const modalInitialData =
     itemModalMode === 'url'
       ? importedItemData
-      : itemModalMode === 'edit' && itemBeingEdited
-        ? {
-            manufacturer: itemBeingEdited.manufacturer,
-            model: itemBeingEdited.model,
-            note: itemBeingEdited.note,
-            attributes: itemBeingEdited.attributes ?? {},
-            sourceUrl: itemBeingEdited.sourceUrl ?? null
-          }
+      : itemModalMode === 'edit'
+        ? editItemInitialData
         : null;
 
   const itemModalSubmit =
-    itemModalMode === 'edit' ? handleUpdateItemSubmit : createItemMutation.mutateAsync;
+    itemModalMode === 'edit' ? handleUpdateItemSubmit : handleCreateItemSubmit;
 
-  const itemModalIsSubmitting = itemModalMode === 'edit'
-    ? updateItemMutation.isPending
-    : createItemMutation.isPending;
+  const itemModalIsSubmitting =
+    isSavingItem ||
+    (itemModalMode === 'edit'
+      ? updateItemMutation.isPending
+      : createItemMutation.isPending);
 
   const itemModalInitialDataLoading =
-    itemModalMode === 'url' ? isImportingItem : false;
+    itemModalMode === 'url'
+      ? isImportingItem
+      : itemModalMode === 'edit'
+        ? isLoadingItemDetails
+        : false;
 
-  const itemModalInitialDataError = itemModalMode === 'url' ? importError : null;
+  const itemModalInitialDataError =
+    itemModalMode === 'url'
+      ? importError
+      : itemModalMode === 'edit'
+        ? editItemError
+        : null;
 
   return (
     <div className="flex flex-col gap-10">

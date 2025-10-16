@@ -8,6 +8,11 @@ import {
   updateItem
 } from '../controllers/items-controller.js';
 import {
+  createItemImage,
+  deleteItemImage,
+  listItemImages
+} from '../controllers/images-controller.js';
+import {
   createItemPrice,
   deleteItemPrice,
   getItemPrice,
@@ -41,6 +46,11 @@ apiRouter.post('/projects/:projectId/items', asyncHandler(createItem));
 apiRouter.get('/items/:itemId', asyncHandler(getItem));
 apiRouter.patch('/items/:itemId', asyncHandler(updateItem));
 apiRouter.delete('/items/:itemId', asyncHandler(deleteItem));
+
+// Item images
+apiRouter.get('/items/:itemId/images', asyncHandler(listItemImages));
+apiRouter.post('/items/:itemId/images', asyncHandler(createItemImage));
+apiRouter.delete('/images/:imageId', asyncHandler(deleteItemImage));
 
 // Item prices
 apiRouter.get('/items/:itemId/prices', asyncHandler(listItemPrices));

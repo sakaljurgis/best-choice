@@ -23,6 +23,7 @@ export interface ItemCreateInput {
   model: string;
   sourceUrlId: string | null;
   sourceUrl: string | null;
+  defaultImageId: string | null;
   status: ItemStatus;
   note: string | null;
   attributes: Record<string, unknown>;
@@ -43,7 +44,8 @@ export const parseItemCreatePayload = (payload: unknown): ItemCreateInput => {
     note = null,
     attributes,
     sourceUrl,
-    sourceUrlId
+    sourceUrlId,
+    defaultImageId
   } = payload as Record<string, unknown>;
 
   const manufacturerValue =
@@ -81,6 +83,16 @@ export const parseItemCreatePayload = (payload: unknown): ItemCreateInput => {
     normalizedSourceUrl = sourceUrl;
   }
 
+  if (defaultImageId !== undefined && defaultImageId !== null) {
+    if (typeof defaultImageId !== 'string' || defaultImageId.trim().length === 0) {
+      throw new HttpError(
+        400,
+        'defaultImageId must be null when creating an item'
+      );
+    }
+    throw new HttpError(400, 'defaultImageId cannot be set when creating an item');
+  }
+
   return {
     manufacturer:
       manufacturerValue === null ? null : (manufacturerValue as string).trim(),
@@ -89,7 +101,8 @@ export const parseItemCreatePayload = (payload: unknown): ItemCreateInput => {
     note: note === null ? null : (note as string),
     attributes: ensureAttributesObject(attributes),
     sourceUrlId: normalizedSourceUrlId,
-    sourceUrl: normalizedSourceUrl
+    sourceUrl: normalizedSourceUrl,
+    defaultImageId: null
   };
 };
 
@@ -107,7 +120,8 @@ export const parseItemUpdatePayload = (payload: unknown): ItemUpdateInput => {
     note,
     attributes,
     sourceUrl,
-    sourceUrlId
+    sourceUrlId,
+    defaultImageId
   } = payload as Record<string, unknown>;
 
   if (manufacturer !== undefined || brand !== undefined) {
@@ -167,6 +181,22 @@ export const parseItemUpdatePayload = (payload: unknown): ItemUpdateInput => {
       result.sourceUrl = sourceUrl;
     } else {
       throw new HttpError(400, 'sourceUrl must be a non-empty string or null');
+    }
+  }
+
+  if (defaultImageId !== undefined) {
+    if (defaultImageId === null) {
+      result.defaultImageId = null;
+    } else if (
+      typeof defaultImageId === 'string' &&
+      defaultImageId.trim().length > 0
+    ) {
+      result.defaultImageId = parseUuid(defaultImageId, 'defaultImageId');
+    } else {
+      throw new HttpError(
+        400,
+        'defaultImageId must be a non-empty string or null'
+      );
     }
   }
 
