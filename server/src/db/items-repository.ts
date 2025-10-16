@@ -10,6 +10,7 @@ const itemColumns = `
   i.model,
   i.source_url_id,
   i.default_image_id,
+  default_image.url AS default_image_url,
   i.status,
   i.note,
   i.attributes,
@@ -38,6 +39,7 @@ export interface ItemRow {
   model: string;
   source_url_id: string | null;
   default_image_id: string | null;
+  default_image_url: string | null;
   status: ItemStatus;
   note: string | null;
   attributes: Record<string, unknown>;
@@ -84,6 +86,15 @@ const mapItemRow = (row: ItemRow, images?: ItemImage[]): ItemRecord => {
         }
       : null;
 
+  let defaultImageUrl = row.default_image_url ?? null;
+
+  if (!defaultImageUrl && row.default_image_id && images) {
+    const defaultImage = images.find((image) => image.id === row.default_image_id);
+    if (defaultImage) {
+      defaultImageUrl = defaultImage.url;
+    }
+  }
+
   return {
     id: row.id,
     projectId: row.project_id,
@@ -91,6 +102,7 @@ const mapItemRow = (row: ItemRow, images?: ItemImage[]): ItemRecord => {
     model: row.model,
     sourceUrlId: row.source_url_id,
     defaultImageId: row.default_image_id,
+    defaultImageUrl,
     sourceUrl: row.source_url,
     status: row.status,
     note: row.note,
@@ -128,6 +140,7 @@ export const listItems = async (options: ListItemsOptions): Promise<ItemRecord[]
       SELECT ${itemColumns}
       FROM items i
       LEFT JOIN urls u ON u.id = i.source_url_id
+      LEFT JOIN images default_image ON default_image.id = i.default_image_id
       LEFT JOIN LATERAL (
         SELECT
           MIN(ip.amount) AS min_amount,
@@ -215,6 +228,7 @@ export const getItemById = async (id: string): Promise<ItemRecord | null> => {
       SELECT ${itemColumns}
       FROM items i
       LEFT JOIN urls u ON u.id = i.source_url_id
+      LEFT JOIN images default_image ON default_image.id = i.default_image_id
       LEFT JOIN LATERAL (
         SELECT
           MIN(ip.amount) AS min_amount,

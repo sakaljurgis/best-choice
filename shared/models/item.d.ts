@@ -26,6 +26,7 @@ export interface Item {
   sourceUrlId: string | null;
   sourceUrl: string | null;
   defaultImageId: string | null;
+  defaultImageUrl: string | null;
   status: ItemStatus;
   note: string | null;
   attributes: Record<string, unknown>;

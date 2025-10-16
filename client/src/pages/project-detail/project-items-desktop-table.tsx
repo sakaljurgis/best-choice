@@ -3,6 +3,7 @@ import { ExternalLink } from 'lucide-react';
 import type { Item } from '@shared/models/item';
 import { ItemPricesPanel } from './item-prices-panel';
 import { formatAttributeValue, getPriceSummaryDisplay } from './project-items-utils';
+import { ItemThumbnail } from './item-thumbnail';
 
 interface ProjectItemsDesktopTableProps {
   items: Item[];
@@ -49,13 +50,18 @@ export function ProjectItemsDesktopTable({
               const priceDisplay = getPriceSummaryDisplay(item.priceSummary);
               const isExpanded = expandedItemId === item.id;
               const panelId = `item-${item.id}-prices-desktop`;
+              const displayName = item.manufacturer
+                ? `${item.manufacturer} ${item.model}`
+                : item.model;
 
               return (
                 <Fragment key={item.id}>
                   <tr className={`hover:bg-slate-50 ${isExpanded ? 'bg-slate-50' : ''}`}>
                     <td className="px-4 py-3 align-top">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-start gap-3">
+                        <ItemThumbnail url={item.defaultImageUrl} alt={displayName} size="sm" />
+                        <div className="flex flex-1 flex-col gap-1">
+                          <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => onEditItem(item)}
@@ -69,7 +75,7 @@ export function ProjectItemsDesktopTable({
                               }`}
                             />
                             <span className="font-semibold group-hover:underline">
-                              {item.manufacturer ? `${item.manufacturer} ${item.model}` : item.model}
+                              {displayName}
                             </span>
                           </button>
                           {item.sourceUrl ? (
@@ -85,9 +91,10 @@ export function ProjectItemsDesktopTable({
                             </a>
                           ) : null}
                         </div>
-                        {item.note ? (
-                          <span className="text-xs text-slate-500">{item.note}</span>
-                        ) : null}
+                          {item.note ? (
+                            <span className="text-xs text-slate-500">{item.note}</span>
+                          ) : null}
+                        </div>
                       </div>
                     </td>
                     {visibleAttributes.map((attribute) => (
