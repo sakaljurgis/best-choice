@@ -16,6 +16,7 @@ import {
   parseItemStatusFilter,
   parseItemUpdatePayload
 } from '../validation/items.js';
+import { readUrlMarkdown } from '../services/url-reader-service.js';
 
 export const listItems = async (req: Request, res: Response) => {
   const projectId = parseUuid(req.params.projectId, 'projectId');
@@ -151,19 +152,31 @@ export const importItemFromUrl = async (req: Request, res: Response) => {
   void projectId;
 
   const { url } = parseItemImportPayload(req.body);
-  const loweredUrl = url.toLowerCase();
+  let hostname: string | null = null;
+  let lastPathSegment: string | null = null;
+  let normalizedUrl = url;
 
-  if (loweredUrl.includes('fail') || loweredUrl.includes('error')) {
+  try {
+    normalizedUrl = new URL(url).toString();
+  } catch {
+    // If the URL constructor fails here, readUrlMarkdown will surface the error.
+  }
+
+  let markdown: string;
+  try {
+    markdown = await readUrlMarkdown(normalizedUrl);
+  } catch (error) {
+    if (error instanceof HttpError) {
+      throw error;
+    }
     throw new HttpError(
       422,
       'We could not read that URL. Please enter the item details manually.'
     );
   }
 
-  let hostname: string | null = null;
-  let lastPathSegment: string | null = null;
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(normalizedUrl);
     hostname = parsed.hostname.replace(/^www\./, '');
     const pathSegments = parsed.pathname.split('/').filter(Boolean);
     if (pathSegments.length) {
@@ -190,13 +203,20 @@ export const importItemFromUrl = async (req: Request, res: Response) => {
     url: `https://picsum.photos/seed/${encodeURIComponent(seed)}/800/600`
   }));
 
+  const importedAt = new Date().toISOString();
   const attributes: Record<string, unknown> = {
-    originUrl: url,
-    importedAt: new Date().toISOString(),
+    originUrl: normalizedUrl,
+    importedAt,
     condition: 'New',
     availability: 'In stock',
     dpi: 1200,
-    imageCount: images.length
+    imageCount: images.length,
+    urlReader: {
+      provider: 'jina.ai',
+      format: 'markdown',
+      fetchedAt: importedAt,
+      content: markdown
+    }
   };
 
   if (hostname) {
@@ -209,6 +229,7 @@ export const importItemFromUrl = async (req: Request, res: Response) => {
       model,
       note: null,
       attributes,
+      sourceUrl: normalizedUrl,
       images
     }
   });
