@@ -14,6 +14,9 @@ const urlReaderBaseUrl = (process.env.URL_READER_BASE_URL ?? 'https://r.jina.ai'
   ''
 );
 const urlReaderApiKey = process.env.URL_READER_API_KEY ?? '';
+const llmApiUrl = process.env.LLM_API_URL ?? '';
+const llmApiKey = process.env.LLM_API_KEY ?? '';
+const llmModel = process.env.LLM_MODEL ?? 'gpt-4o-mini';
 
 export const env = {
   port,
@@ -23,5 +26,10 @@ export const env = {
   urlReader: {
     baseUrl: urlReaderBaseUrl,
     apiKey: urlReaderApiKey
+  },
+  llm: {
+    apiUrl: llmApiUrl,
+    apiKey: llmApiKey,
+    model: llmModel
   }
 };
