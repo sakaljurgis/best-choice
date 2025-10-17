@@ -9,7 +9,7 @@ export const migration: Migration = {
       CREATE TABLE IF NOT EXISTS urls (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         url TEXT NOT NULL UNIQUE,
-        note TEXT,
+        body_text TEXT,
         attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
         has_price BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
