@@ -12,6 +12,7 @@ interface ProjectItemsDesktopTableProps {
   onTogglePrices: (itemId: string) => void;
   onEditItem: (item: Item) => void;
   projectId: string | undefined;
+  onViewItemImages: (item: Item) => void;
 }
 
 export function ProjectItemsDesktopTable({
@@ -20,7 +21,8 @@ export function ProjectItemsDesktopTable({
   expandedItemId,
   onTogglePrices,
   onEditItem,
-  projectId
+  projectId,
+  onViewItemImages
 }: ProjectItemsDesktopTableProps) {
   return (
     <div className="hidden md:block">
@@ -59,38 +61,43 @@ export function ProjectItemsDesktopTable({
                   <tr className={`hover:bg-slate-50 ${isExpanded ? 'bg-slate-50' : ''}`}>
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-start gap-3">
-                        <ItemThumbnail url={item.defaultImageUrl} alt={displayName} size="sm" />
+                        <ItemThumbnail
+                          url={item.defaultImageUrl}
+                          alt={displayName}
+                          size="sm"
+                          onClick={() => onViewItemImages(item)}
+                        />
                         <div className="flex flex-1 flex-col gap-1">
                           <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onEditItem(item)}
-                            className="group inline-flex items-center gap-2 rounded-md text-left text-slate-900 transition hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                            title="Edit item details"
-                          >
-                            <span
-                              aria-hidden
-                              className={`inline-block h-2.5 w-2.5 rounded-full ${
-                                item.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
-                              }`}
-                            />
-                            <span className="font-semibold group-hover:underline">
-                              {displayName}
-                            </span>
-                          </button>
-                          {item.sourceUrl ? (
-                            <a
-                              href={item.sourceUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-blue-600 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                              title="Open source link"
+                            <button
+                              type="button"
+                              onClick={() => onEditItem(item)}
+                              className="group inline-flex items-center gap-2 rounded-md text-left text-slate-900 transition hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                              title="Edit item details"
                             >
-                              <ExternalLink aria-hidden className="h-4 w-4" />
-                              <span className="sr-only">Open source link</span>
-                            </a>
-                          ) : null}
-                        </div>
+                              <span
+                                aria-hidden
+                                className={`inline-block h-2.5 w-2.5 rounded-full ${
+                                  item.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
+                                }`}
+                              />
+                              <span className="font-semibold group-hover:underline">
+                                {displayName}
+                              </span>
+                            </button>
+                            {item.sourceUrl ? (
+                              <a
+                                href={item.sourceUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-blue-600 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                                title="Open source link"
+                              >
+                                <ExternalLink aria-hidden className="h-4 w-4" />
+                                <span className="sr-only">Open source link</span>
+                              </a>
+                            ) : null}
+                          </div>
                           {item.note ? (
                             <span className="text-xs text-slate-500">{item.note}</span>
                           ) : null}

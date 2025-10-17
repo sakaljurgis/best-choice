@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { Item } from '@shared/models/item';
 import { useQueryClient } from '@tanstack/react-query';
@@ -22,6 +22,7 @@ import { ProjectHeader } from './project-header';
 import { ProjectDescriptionSection } from './project-description-section';
 import { TrackedAttributesSection } from './tracked-attributes-section';
 import { ProjectItemsSection } from './project-items-section';
+import { ItemImageGalleryOverlay, type GalleryImage } from './item-image-gallery-overlay';
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -47,6 +48,16 @@ export function ProjectDetailPage() {
   const [isLoadingItemDetails, setIsLoadingItemDetails] = useState(false);
   const [editItemError, setEditItemError] = useState<string | null>(null);
   const [isSavingItem, setIsSavingItem] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryItemName, setGalleryItemName] = useState('');
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [galleryActiveIndex, setGalleryActiveIndex] = useState(0);
+  const [isGalleryLoading, setIsGalleryLoading] = useState(false);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
+  const galleryCacheRef = useRef(
+    new Map<string, { images: GalleryImage[]; defaultImageId: string | null }>()
+  );
+  const galleryRequestIdRef = useRef(0);
 
   const project = projectQuery.data;
   const items = useMemo(() => itemsQuery.data?.data ?? [], [itemsQuery.data]);
@@ -78,6 +89,126 @@ export function ProjectDetailPage() {
 
     return Array.from(attributeSet).sort((a, b) => a.localeCompare(b));
   }, [projectAttributes, items]);
+
+  const handleViewItemImages = useCallback(
+    async (item: Item) => {
+      const displayName = item.manufacturer ? `${item.manufacturer} ${item.model}` : item.model;
+
+      galleryRequestIdRef.current += 1;
+      const requestId = galleryRequestIdRef.current;
+
+      const cached = galleryCacheRef.current.get(item.id);
+      const fallbackImages =
+        item.images && item.images.length
+          ? item.images.map((image) => ({ id: image.id, url: image.url }))
+          : [];
+
+      let initialImages = cached?.images ?? fallbackImages;
+
+      if (!initialImages.length && item.defaultImageUrl) {
+        initialImages = [
+          {
+            id: item.defaultImageId ?? 'default-image',
+            url: item.defaultImageUrl
+          }
+        ];
+      }
+
+      const initialDefaultId = cached?.defaultImageId ?? item.defaultImageId ?? null;
+
+      setIsGalleryOpen(true);
+      setGalleryItemName(displayName);
+      setGalleryError(null);
+      setGalleryImages(initialImages);
+      setIsGalleryLoading(!cached && initialImages.length === 0);
+
+      if (initialImages.length) {
+        if (initialDefaultId) {
+          const defaultIndex = initialImages.findIndex((image) => image.id === initialDefaultId);
+          setGalleryActiveIndex(defaultIndex >= 0 ? defaultIndex : 0);
+        } else {
+          setGalleryActiveIndex(0);
+        }
+      } else {
+        setGalleryActiveIndex(0);
+      }
+
+      if (cached) {
+        return;
+      }
+
+      try {
+        const fullItem = await fetchItem(item.id);
+        if (galleryRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        const normalizedImages =
+          fullItem.images?.map((image) => ({
+            id: image.id,
+            url: image.url
+          })) ?? [];
+        const defaultId = fullItem.defaultImageId ?? null;
+
+        galleryCacheRef.current.set(item.id, {
+          images: normalizedImages,
+          defaultImageId: defaultId
+        });
+
+        setGalleryImages(normalizedImages);
+
+        if (normalizedImages.length) {
+          const resolvedIndex = defaultId
+            ? normalizedImages.findIndex((image) => image.id === defaultId)
+            : -1;
+          setGalleryActiveIndex(resolvedIndex >= 0 ? resolvedIndex : 0);
+        } else {
+          setGalleryActiveIndex(0);
+        }
+        setGalleryError(null);
+      } catch (error) {
+        if (galleryRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        const message =
+          error instanceof Error && error.message.trim().length
+            ? error.message.trim()
+            : 'Failed to load item images.';
+        setGalleryError(message);
+      } finally {
+        if (galleryRequestIdRef.current === requestId) {
+          setIsGalleryLoading(false);
+        }
+      }
+    },
+    []
+  );
+
+  const handleCloseGallery = useCallback(() => {
+    galleryRequestIdRef.current += 1;
+    setIsGalleryOpen(false);
+    setIsGalleryLoading(false);
+    setGalleryError(null);
+  }, []);
+
+  const handleGalleryNext = useCallback(() => {
+    setGalleryActiveIndex((current) => {
+      if (galleryImages.length <= 1) {
+        return current;
+      }
+      return (current + 1) % galleryImages.length;
+    });
+  }, [galleryImages]);
+
+  const handleGalleryPrevious = useCallback(() => {
+    setGalleryActiveIndex((current) => {
+      if (galleryImages.length <= 1) {
+        return current;
+      }
+      return (current - 1 + galleryImages.length) % galleryImages.length;
+    });
+  }, [galleryImages]);
 
   const openItemModal = (mode: 'url' | 'manual' | 'edit', initialUrl: string | null) => {
     setItemModalMode(mode);
@@ -467,6 +598,7 @@ export function ProjectDetailPage() {
         isImportingFromUrl={isImportingItem}
         onEditItem={handleEditItem}
         projectId={projectId}
+        onViewItemImages={handleViewItemImages}
       />
 
       <ItemFormModal
@@ -481,6 +613,18 @@ export function ProjectDetailPage() {
         initialData={modalInitialData}
         isInitialDataLoading={itemModalInitialDataLoading}
         initialDataError={itemModalInitialDataError}
+      />
+
+      <ItemImageGalleryOverlay
+        isOpen={isGalleryOpen}
+        itemName={galleryItemName}
+        images={galleryImages}
+        activeIndex={galleryActiveIndex}
+        isLoading={isGalleryLoading}
+        error={galleryError}
+        onClose={handleCloseGallery}
+        onNext={handleGalleryNext}
+        onPrevious={handleGalleryPrevious}
       />
     </div>
   );

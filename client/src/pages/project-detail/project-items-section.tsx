@@ -19,6 +19,7 @@ interface ProjectItemsSectionProps {
   isImportingFromUrl: boolean;
   onEditItem: (item: Item) => void;
   projectId: string | undefined;
+  onViewItemImages: (item: Item) => void;
 }
 
 export function ProjectItemsSection({
@@ -33,7 +34,8 @@ export function ProjectItemsSection({
   onAddManual,
   isImportingFromUrl,
   onEditItem,
-  projectId
+  projectId,
+  onViewItemImages
 }: ProjectItemsSectionProps) {
   const [showDifferencesOnly, setShowDifferencesOnly] = useState(false);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
@@ -134,6 +136,7 @@ export function ProjectItemsSection({
           onTogglePrices={handleTogglePrices}
           onEditItem={onEditItem}
           projectId={projectId}
+          onViewItemImages={onViewItemImages}
         />
 
         <ProjectItemsMobileList
@@ -143,6 +146,7 @@ export function ProjectItemsSection({
           onTogglePrices={handleTogglePrices}
           onEditItem={onEditItem}
           projectId={projectId}
+          onViewItemImages={onViewItemImages}
         />
       </section>
 
