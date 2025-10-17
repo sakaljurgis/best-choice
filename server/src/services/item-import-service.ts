@@ -152,7 +152,7 @@ export const extractItemImportDetails = async ({
     prompt: [
       'Extract product details for cataloging.',
       `Source URL: ${normalizedUrl}`,
-      'Provide the best available manufacturer, model, concise note (if applicable), up to 12 key attributes, and any image URLs present.',
+      'Provide the best available manufacturer, model, concise note (if applicable), key attributes, and any image URLs present.',
       'Markdown content:',
       '```markdown',
       markdown,
