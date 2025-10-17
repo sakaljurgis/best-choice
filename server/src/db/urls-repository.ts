@@ -112,3 +112,25 @@ export const updateUrlBodyText = async (
 
   return mapUrlRow(result.rows[0]);
 };
+
+export const updateUrlAttributes = async (
+  id: string,
+  attributes: unknown
+): Promise<UrlRecord | null> => {
+  const result = await query<UrlRow>(
+    `
+      UPDATE urls
+      SET attributes = $2,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, url, body_text, attributes, has_price, created_at, updated_at
+    `,
+    [id, attributes ?? {}]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return mapUrlRow(result.rows[0]);
+};

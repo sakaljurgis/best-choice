@@ -9,6 +9,7 @@ import {
 import {
   createUrl,
   findUrlByValue,
+  updateUrlAttributes,
   updateUrlBodyText
 } from '../db/urls-repository.js';
 import { findImageById } from '../db/images-repository.js';
@@ -23,6 +24,10 @@ import {
 } from '../validation/items.js';
 import { readUrlMarkdown } from '../services/url-reader-service.js';
 import { normalizeUrl } from '../utils/url-normalizer.js';
+import {
+  extractItemImportDetails,
+  parseCachedItemImportDetails
+} from '../services/item-import-service.js';
 
 export const listItems = async (req: Request, res: Response) => {
   const projectId = parseUuid(req.params.projectId, 'projectId');
@@ -150,16 +155,10 @@ export const deleteItem = async (req: Request, res: Response) => {
 };
 
 export const importItemFromUrl = async (req: Request, res: Response) => {
-  await new Promise((resolve) => {
-    setTimeout(resolve, 1000);
-  })
   const projectId = parseUuid(req.params.projectId, 'projectId');
-  // projectId is validated but not otherwise used for the mock response.
   void projectId;
 
   const { url } = parseItemImportPayload(req.body);
-  let hostname: string | null = null;
-  let lastPathSegment: string | null = null;
   let normalizedUrl = url;
 
   try {
@@ -198,62 +197,26 @@ export const importItemFromUrl = async (req: Request, res: Response) => {
     }
   }
 
-  try {
-    const parsed = new URL(normalizedUrl);
-    hostname = parsed.hostname.replace(/^www\./, '');
-    const pathSegments = parsed.pathname.split('/').filter(Boolean);
-    if (pathSegments.length) {
-      lastPathSegment = pathSegments[pathSegments.length - 1];
+  const cachedDetails = parseCachedItemImportDetails(urlRecord?.attributes);
+  const details = cachedDetails
+    ? cachedDetails
+    : await extractItemImportDetails({ normalizedUrl, markdown });
+
+  if (!cachedDetails) {
+    if (urlRecord) {
+      const updated = await updateUrlAttributes(urlRecord.id, details);
+      if (updated) {
+        urlRecord = updated;
+      }
+    } else {
+      urlRecord = await createUrl({ url: normalizedDbUrl, bodyText: markdown, attributes: details });
     }
-  } catch {
-    // non-standard URLs fall back to generic mock content
-  }
-
-  const manufacturerBase = hostname ? hostname.split('.')[0] : 'imported';
-  const manufacturer =
-    manufacturerBase.charAt(0).toUpperCase() + manufacturerBase.slice(1);
-
-  const cleanedSegment =
-    lastPathSegment?.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim() ?? 'Item';
-  const model = cleanedSegment.length ? cleanedSegment : 'Imported Item';
-
-  const imageSeedBase = cleanedSegment.length
-    ? cleanedSegment.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    : manufacturer.toLowerCase();
-  const normalizedSeed = imageSeedBase.length ? imageSeedBase : 'imported-item';
-  const imageSeeds = Array.from({ length: 3 }, (_, index) => `${normalizedSeed}-${index + 1}`);
-  const images = imageSeeds.map((seed) => ({
-    url: `https://picsum.photos/seed/${encodeURIComponent(seed)}/800/600`
-  }));
-
-  const importedAt = new Date().toISOString();
-  const attributes: Record<string, unknown> = {
-    originUrl: normalizedUrl,
-    importedAt,
-    condition: 'New',
-    availability: 'In stock',
-    dpi: 1200,
-    imageCount: images.length,
-    urlReader: {
-      provider: 'jina.ai',
-      format: 'markdown',
-      fetchedAt: importedAt,
-      content: markdown
-    }
-  };
-
-  if (hostname) {
-    attributes.domain = hostname;
   }
 
   res.json({
     data: {
-      manufacturer,
-      model,
-      note: null,
-      attributes,
-      sourceUrl: normalizedUrl,
-      images
+      ...details,
+      sourceUrl: normalizedUrl
     }
   });
 };
