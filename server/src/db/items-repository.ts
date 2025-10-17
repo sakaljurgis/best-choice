@@ -353,3 +353,112 @@ export const deleteItem = async (id: string): Promise<boolean> => {
 
   return (result.rowCount ?? 0) > 0;
 };
+
+export interface ProjectAttributeExample {
+  key: string;
+  sampleValues: string[];
+}
+
+export interface ProjectAttributeExampleOptions {
+  itemLimit?: number;
+  attributeLimit?: number;
+  valuesPerAttribute?: number;
+}
+
+export const getProjectAttributeExamples = async (
+  projectId: string,
+  options?: ProjectAttributeExampleOptions
+): Promise<ProjectAttributeExample[]> => {
+  const itemLimit = Math.max(1, Math.min(options?.itemLimit ?? 50, 200));
+  const attributeLimit = Math.max(1, Math.min(options?.attributeLimit ?? 15, 100));
+  const valuesPerAttribute = Math.max(1, Math.min(options?.valuesPerAttribute ?? 5, 10));
+
+  const result = await query<{ attributes: Record<string, unknown> }>(
+    `
+      SELECT attributes
+      FROM items
+      WHERE project_id = $1
+      ORDER BY updated_at DESC
+      LIMIT $2
+    `,
+    [projectId, itemLimit]
+  );
+
+  const attributeOrder: string[] = [];
+  const valueMap = new Map<string, Set<string>>();
+
+  const formatValue = (value: unknown): string | null => {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return null;
+      }
+
+      return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    try {
+      const json = JSON.stringify(value);
+      if (!json || json === '[]' || json === '{}') {
+        return null;
+      }
+
+      return json.length > 120 ? `${json.slice(0, 117)}...` : json;
+    } catch {
+      return null;
+    }
+  };
+
+  for (const row of result.rows) {
+    const attributes = row.attributes ?? {};
+
+    for (const [rawKey, rawValue] of Object.entries(attributes)) {
+      if (typeof rawKey !== 'string') {
+        continue;
+      }
+
+      const key = rawKey.trim();
+      if (!key) {
+        continue;
+      }
+
+      let valueSet = valueMap.get(key);
+      if (!valueSet) {
+        if (attributeOrder.length >= attributeLimit) {
+          continue;
+        }
+        valueSet = new Set<string>();
+        valueMap.set(key, valueSet);
+        attributeOrder.push(key);
+      }
+
+      if (valueSet.size >= valuesPerAttribute) {
+        continue;
+      }
+
+      const formattedValue = formatValue(rawValue);
+      if (!formattedValue || valueSet.has(formattedValue)) {
+        continue;
+      }
+
+      valueSet.add(formattedValue);
+    }
+  }
+
+  return attributeOrder.map((key) => ({
+    key,
+    sampleValues: Array.from(valueMap.get(key) ?? [])
+  }));
+};

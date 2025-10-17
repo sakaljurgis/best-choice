@@ -3,6 +3,7 @@ import {
   createItem as createItemRepo,
   deleteItem as deleteItemRepo,
   getItemById,
+  getProjectAttributeExamples,
   listItems as listItemsRepo,
   updateItem as updateItemRepo
 } from '../db/items-repository.js';
@@ -26,8 +27,10 @@ import { readUrlMarkdown } from '../services/url-reader-service.js';
 import { normalizeUrl } from '../utils/url-normalizer.js';
 import {
   extractItemImportDetails,
-  parseCachedItemImportDetails
+  parseCachedItemImportDetails,
+  ItemImportDetails
 } from '../services/item-import-service.js';
+import { getProjectById } from '../db/projects-repository.js';
 
 export const listItems = async (req: Request, res: Response) => {
   const projectId = parseUuid(req.params.projectId, 'projectId');
@@ -156,7 +159,11 @@ export const deleteItem = async (req: Request, res: Response) => {
 
 export const importItemFromUrl = async (req: Request, res: Response) => {
   const projectId = parseUuid(req.params.projectId, 'projectId');
-  void projectId;
+  const project = await getProjectById(projectId);
+
+  if (!project) {
+    throw new HttpError(404, 'Project not found');
+  }
 
   const { url } = parseItemImportPayload(req.body);
   let normalizedUrl = url;
@@ -198,9 +205,21 @@ export const importItemFromUrl = async (req: Request, res: Response) => {
   }
 
   const cachedDetails = parseCachedItemImportDetails(urlRecord?.attributes);
-  const details = cachedDetails
-    ? cachedDetails
-    : await extractItemImportDetails({ normalizedUrl, markdown });
+  let details: ItemImportDetails;
+
+  if (cachedDetails) {
+    details = cachedDetails;
+  } else {
+    const attributeExamples = await getProjectAttributeExamples(projectId);
+    details = await extractItemImportDetails({
+      normalizedUrl,
+      markdown,
+      attributeHints: {
+        projectAttributeNames: project.attributes,
+        projectAttributeExamples: attributeExamples
+      }
+    });
+  }
 
   if (!cachedDetails) {
     if (urlRecord) {

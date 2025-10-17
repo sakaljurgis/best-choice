@@ -8,6 +8,16 @@ interface LlmImportExtractionResult {
   images?: Array<{ url?: string | null; alt?: string | null }> | null;
 }
 
+interface AttributeHintSample {
+  key: string;
+  sampleValues: string[];
+}
+
+interface ProjectAttributeHints {
+  projectAttributeNames?: string[];
+  projectAttributeExamples?: AttributeHintSample[];
+}
+
 const toSnakeCaseKey = (value: string): string => {
   return value
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
@@ -140,24 +150,75 @@ export const parseCachedItemImportDetails = (raw: unknown): ItemImportDetails | 
 
 export const extractItemImportDetails = async ({
   normalizedUrl,
-  markdown
+  markdown,
+  attributeHints
 }: {
   normalizedUrl: string;
   markdown: string;
+  attributeHints?: ProjectAttributeHints;
 }): Promise<ItemImportDetails> => {
+  const preferredAttributeNames = (attributeHints?.projectAttributeNames ?? [])
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0)
+    .slice(0, 12);
+
+  const attributeExampleLines = (attributeHints?.projectAttributeExamples ?? [])
+    .map((example) => {
+      const key = example.key.trim();
+      if (!key) {
+        return null;
+      }
+
+      const values = example.sampleValues
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+        .slice(0, 3);
+
+      if (values.length === 0) {
+        return null;
+      }
+
+      return `- ${key}: ${values.join(' | ')}`;
+    })
+    .filter((line): line is string => Boolean(line))
+    .slice(0, 10);
+
+  const promptSections: string[] = [
+    'Extract product details for cataloging.',
+    `Source URL: ${normalizedUrl}`
+  ];
+
+  if (preferredAttributeNames.length > 0 || attributeExampleLines.length > 0) {
+    promptSections.push('Project attribute context:');
+
+    if (preferredAttributeNames.length > 0) {
+      promptSections.push(`Preferred attribute keys: ${preferredAttributeNames.join(', ')}`);
+    }
+
+    if (attributeExampleLines.length > 0) {
+      promptSections.push('Existing item attribute examples:');
+      promptSections.push(...attributeExampleLines);
+    }
+
+    promptSections.push(
+      'When the content maps to these attributes, reuse the exact key. Only introduce new keys when necessary.'
+    );
+  }
+
+  promptSections.push(
+    'Provide the best available manufacturer, model, concise note (if applicable), key attributes, and any image URLs present.',
+    'Markdown content:',
+    '```markdown',
+    markdown,
+    '```'
+  );
+
   const llmExtraction = await requestStructuredLlmResponse<LlmImportExtractionResult>({
     systemPrompt:
-      'You extract structured product information from markdown content. ' +
+      'You extract structured product information for a catalog from markdown content. ' +
+      'Use the provided project attribute context to align attribute names. ' +
       'Return only facts explicitly supported by the text. Never invent details.',
-    prompt: [
-      'Extract product details for cataloging.',
-      `Source URL: ${normalizedUrl}`,
-      'Provide the best available manufacturer, model, concise note (if applicable), key attributes, and any image URLs present.',
-      'Markdown content:',
-      '```markdown',
-      markdown,
-      '```'
-    ].join('\n'),
+    prompt: promptSections.join('\n'),
     responseSchema: {
       name: 'product_import',
       schema: {
@@ -180,7 +241,7 @@ export const extractItemImportDetails = async ({
           attributes: {
             type: 'object',
             description:
-              'Key-value attributes derived from the content (e.g., price, dimensions, materials).',
+              'Key-value attributes derived from the content (e.g., price, dimensions, materials). Prefer attribute keys that match the provided project context.',
             additionalProperties: {
               anyOf: [
                 { type: 'string' },
