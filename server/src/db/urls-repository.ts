@@ -90,3 +90,25 @@ export const createUrl = async (params: CreateUrlParams): Promise<UrlRecord> => 
 
   return mapUrlRow(result.rows[0]);
 };
+
+export const updateUrlBodyText = async (
+  id: string,
+  bodyText: string
+): Promise<UrlRecord | null> => {
+  const result = await query<UrlRow>(
+    `
+      UPDATE urls
+      SET body_text = $2,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, url, body_text, attributes, has_price, created_at, updated_at
+    `,
+    [id, bodyText]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return mapUrlRow(result.rows[0]);
+};

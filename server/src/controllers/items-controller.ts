@@ -6,6 +6,11 @@ import {
   listItems as listItemsRepo,
   updateItem as updateItemRepo
 } from '../db/items-repository.js';
+import {
+  createUrl,
+  findUrlByValue,
+  updateUrlBodyText
+} from '../db/urls-repository.js';
 import { findImageById } from '../db/images-repository.js';
 import { HttpError } from '../errors/http-error.js';
 import { resolveUrlId } from './url-helpers.js';
@@ -17,6 +22,7 @@ import {
   parseItemUpdatePayload
 } from '../validation/items.js';
 import { readUrlMarkdown } from '../services/url-reader-service.js';
+import { normalizeUrl } from '../utils/url-normalizer.js';
 
 export const listItems = async (req: Request, res: Response) => {
   const projectId = parseUuid(req.params.projectId, 'projectId');
@@ -162,17 +168,34 @@ export const importItemFromUrl = async (req: Request, res: Response) => {
     // If the URL constructor fails here, readUrlMarkdown will surface the error.
   }
 
+  const normalizedDbUrl = normalizeUrl(url);
+  let urlRecord = await findUrlByValue(normalizedDbUrl);
   let markdown: string;
-  try {
-    markdown = await readUrlMarkdown(normalizedUrl);
-  } catch (error) {
-    if (error instanceof HttpError) {
-      throw error;
+
+  const existingBody = urlRecord?.bodyText;
+  if (existingBody && existingBody.trim().length > 0) {
+    markdown = existingBody;
+  } else {
+    try {
+      markdown = await readUrlMarkdown(normalizedUrl);
+    } catch (error) {
+      if (error instanceof HttpError) {
+        throw error;
+      }
+      throw new HttpError(
+        422,
+        'We could not read that URL. Please enter the item details manually.'
+      );
     }
-    throw new HttpError(
-      422,
-      'We could not read that URL. Please enter the item details manually.'
-    );
+
+    if (urlRecord) {
+      const updated = await updateUrlBodyText(urlRecord.id, markdown);
+      if (updated) {
+        urlRecord = updated;
+      }
+    } else {
+      urlRecord = await createUrl({ url: normalizedDbUrl, bodyText: markdown });
+    }
   }
 
   try {

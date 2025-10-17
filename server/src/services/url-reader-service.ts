@@ -40,7 +40,7 @@ export const readUrlMarkdown = async (rawUrl: string): Promise<string> => {
         Authorization: `Bearer ${env.urlReader.apiKey}`
       }
     });
-  } catch (error) {
+  } catch {
     throw new HttpError(
       502,
       'We could not reach the URL reader service. Please try again later.'
