@@ -206,7 +206,7 @@ export const extractItemImportDetails = async ({
   }
 
   promptSections.push(
-    'Provide the best available manufacturer, model, concise note (if applicable), key attributes, and any image URLs present.',
+    'Provide the best available manufacturer, model, concise note (if applicable), all attributes explicitly mentioned in the content (not just the important ones), and any image URLs present.',
     'Markdown content:',
     '```markdown',
     markdown,
@@ -217,6 +217,7 @@ export const extractItemImportDetails = async ({
     systemPrompt:
       'You extract structured product information for a catalog from markdown content. ' +
       'Use the provided project attribute context to align attribute names. ' +
+      'Capture every attribute the content states, even if it falls outside the tracked or preferred list. ' +
       'Return only facts explicitly supported by the text. Never invent details.',
     prompt: promptSections.join('\n'),
     responseSchema: {
