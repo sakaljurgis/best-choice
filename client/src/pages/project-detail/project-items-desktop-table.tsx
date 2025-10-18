@@ -13,6 +13,7 @@ interface ProjectItemsDesktopTableProps {
   onEditItem: (item: Item) => void;
   projectId: string | undefined;
   onViewItemImages: (item: Item) => void;
+  showLargeImages: boolean;
 }
 
 export function ProjectItemsDesktopTable({
@@ -22,7 +23,8 @@ export function ProjectItemsDesktopTable({
   onTogglePrices,
   onEditItem,
   projectId,
-  onViewItemImages
+  onViewItemImages,
+  showLargeImages
 }: ProjectItemsDesktopTableProps) {
   return (
     <div className="hidden md:block">
@@ -64,7 +66,7 @@ export function ProjectItemsDesktopTable({
                         <ItemThumbnail
                           url={item.defaultImageUrl}
                           alt={displayName}
-                          size="sm"
+                          size={showLargeImages ? 'md' : 'sm'}
                           onClick={() => onViewItemImages(item)}
                         />
                         <div className="flex flex-1 flex-col gap-1">

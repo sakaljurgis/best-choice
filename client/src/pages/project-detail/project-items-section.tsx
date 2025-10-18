@@ -39,6 +39,7 @@ export function ProjectItemsSection({
 }: ProjectItemsSectionProps) {
   const [showDifferencesOnly, setShowDifferencesOnly] = useState(false);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [showLargeImages, setShowLargeImages] = useState(false);
 
   const mismatchedAttributes = useMemo(() => {
     const result = new Set<string>();
@@ -117,6 +118,8 @@ export function ProjectItemsSection({
           showDifferencesOnly={showDifferencesOnly}
           hasAttributeDifferences={hasAttributeDifferences}
           onToggleDifferences={(value) => setShowDifferencesOnly(value)}
+          showLargeImages={showLargeImages}
+          onToggleLargeImages={(value) => setShowLargeImages(value)}
         />
 
         {error ? (
@@ -137,6 +140,7 @@ export function ProjectItemsSection({
           onEditItem={onEditItem}
           projectId={projectId}
           onViewItemImages={onViewItemImages}
+          showLargeImages={showLargeImages}
         />
 
         <ProjectItemsMobileList
@@ -147,6 +151,7 @@ export function ProjectItemsSection({
           onEditItem={onEditItem}
           projectId={projectId}
           onViewItemImages={onViewItemImages}
+          showLargeImages={showLargeImages}
         />
       </section>
 

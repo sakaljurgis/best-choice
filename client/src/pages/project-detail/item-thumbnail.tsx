@@ -3,13 +3,14 @@ import { useState } from 'react';
 interface ItemThumbnailProps {
   url: string | null;
   alt: string;
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'md' | 'lg';
   onClick?: () => void;
 }
 
 const sizeClassMap: Record<Required<ItemThumbnailProps>['size'], string> = {
   sm: 'h-14 w-14',
-  md: 'h-20 w-20'
+  md: 'h-20 w-20',
+  lg: 'h-28 w-28'
 };
 
 export function ItemThumbnail({ url, alt, size = 'sm', onClick }: ItemThumbnailProps) {

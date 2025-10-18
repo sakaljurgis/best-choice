@@ -12,6 +12,7 @@ interface ProjectItemsMobileListProps {
   onEditItem: (item: Item) => void;
   projectId: string | undefined;
   onViewItemImages: (item: Item) => void;
+  showLargeImages: boolean;
 }
 
 export function ProjectItemsMobileList({
@@ -21,7 +22,8 @@ export function ProjectItemsMobileList({
   onTogglePrices,
   onEditItem,
   projectId,
-  onViewItemImages
+  onViewItemImages,
+  showLargeImages
 }: ProjectItemsMobileListProps) {
   return (
     <div className="space-y-4 md:hidden">
@@ -38,7 +40,7 @@ export function ProjectItemsMobileList({
               <ItemThumbnail
                 url={item.defaultImageUrl}
                 alt={displayName}
-                size="md"
+                size={showLargeImages ? 'lg' : 'md'}
                 onClick={() => onViewItemImages(item)}
               />
               <div className="flex flex-1 flex-col gap-2">
