@@ -42,11 +42,19 @@ export function ProjectItemsSection({
   const [showDifferencesOnly, setShowDifferencesOnly] = useState(false);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [showLargeImages, setShowLargeImages] = useState(false);
+  const [showActiveOnly, setShowActiveOnly] = useState(false);
+
+  const displayItems = useMemo(() => {
+    if (!showActiveOnly) {
+      return items;
+    }
+    return items.filter((item) => item.status === 'active');
+  }, [items, showActiveOnly]);
 
   const mismatchedAttributes = useMemo(() => {
     const result = new Set<string>();
 
-    if (items.length <= 1 || projectAttributes.length === 0) {
+    if (displayItems.length <= 1 || projectAttributes.length === 0) {
       return result;
     }
 
@@ -59,7 +67,7 @@ export function ProjectItemsSection({
       let referenceValue: unknown = null;
       let hasReference = false;
 
-      for (const item of items) {
+      for (const item of displayItems) {
         const attributes = (item.attributes ?? {}) as Record<string, unknown>;
         const currentValue = attributes[attribute];
 
@@ -77,7 +85,7 @@ export function ProjectItemsSection({
     });
 
     return result;
-  }, [items, projectAttributes]);
+  }, [displayItems, projectAttributes]);
 
   useEffect(() => {
     if (showDifferencesOnly && mismatchedAttributes.size === 0) {
@@ -89,11 +97,11 @@ export function ProjectItemsSection({
     if (!expandedItemId) {
       return;
     }
-    const itemStillPresent = items.some((item) => item.id === expandedItemId);
+    const itemStillPresent = displayItems.some((item) => item.id === expandedItemId);
     if (!itemStillPresent) {
       setExpandedItemId(null);
     }
-  }, [items, expandedItemId]);
+  }, [displayItems, expandedItemId]);
 
   const visibleAttributes = useMemo(() => {
     if (!showDifferencesOnly) {
@@ -105,7 +113,7 @@ export function ProjectItemsSection({
 
   const hasAttributeDifferences = mismatchedAttributes.size > 0;
   const showNoDifferencesMessage =
-    !hasAttributeDifferences && projectAttributes.length > 0 && items.length > 1;
+    !hasAttributeDifferences && projectAttributes.length > 0 && displayItems.length > 1;
 
   const handleTogglePrices = (itemId: string) => {
     setExpandedItemId((current) => (current === itemId ? null : itemId));
@@ -115,13 +123,29 @@ export function ProjectItemsSection({
     <>
       <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <ProjectItemsHeader
-          itemCount={items.length}
+          itemCount={displayItems.length}
+          totalItemCount={items.length}
           isLoading={isLoading}
           showDifferencesOnly={showDifferencesOnly}
           hasAttributeDifferences={hasAttributeDifferences}
           onToggleDifferences={(value) => setShowDifferencesOnly(value)}
           showLargeImages={showLargeImages}
           onToggleLargeImages={(value) => setShowLargeImages(value)}
+          showActiveOnly={showActiveOnly}
+          onToggleActiveOnly={(value) => {
+            setShowActiveOnly(value);
+            if (value) {
+              setExpandedItemId((current) => {
+                if (!current) {
+                  return current;
+                }
+                const stillVisible = items.some(
+                  (item) => item.id === current && item.status === 'active'
+                );
+                return stillVisible ? current : null;
+              });
+            }
+          }}
         />
 
         {error ? (
@@ -135,7 +159,7 @@ export function ProjectItemsSection({
         ) : null}
 
         <ProjectItemsDesktopTable
-          items={items}
+          items={displayItems}
           visibleAttributes={visibleAttributes}
           expandedItemId={expandedItemId}
           onTogglePrices={handleTogglePrices}
@@ -147,7 +171,7 @@ export function ProjectItemsSection({
         />
 
         <ProjectItemsMobileList
-          items={items}
+          items={displayItems}
           visibleAttributes={visibleAttributes}
           expandedItemId={expandedItemId}
           onTogglePrices={handleTogglePrices}
