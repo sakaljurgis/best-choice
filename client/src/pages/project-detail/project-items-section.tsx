@@ -45,10 +45,21 @@ export function ProjectItemsSection({
   const [showActiveOnly, setShowActiveOnly] = useState(false);
 
   const displayItems = useMemo(() => {
-    if (!showActiveOnly) {
-      return items;
-    }
-    return items.filter((item) => item.status === 'active');
+    const filtered = showActiveOnly
+      ? items.filter((item) => item.status === 'active')
+      : items;
+
+    const createDisplayName = (item: Item) =>
+      item.manufacturer ? `${item.manufacturer} ${item.model}` : item.model;
+
+    return [...filtered].sort((first, second) => {
+      if (first.status !== second.status) {
+        return first.status === 'active' ? -1 : 1;
+      }
+      return createDisplayName(first).localeCompare(createDisplayName(second), undefined, {
+        sensitivity: 'base'
+      });
+    });
   }, [items, showActiveOnly]);
 
   const mismatchedAttributes = useMemo(() => {
