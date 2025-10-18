@@ -18,6 +18,7 @@ interface ProjectItemsSectionProps {
   onAddManual: () => void;
   isImportingFromUrl: boolean;
   onEditItem: (item: Item) => void;
+  onEditItemStatus: (item: Item) => void;
   projectId: string | undefined;
   onViewItemImages: (item: Item) => void;
 }
@@ -34,6 +35,7 @@ export function ProjectItemsSection({
   onAddManual,
   isImportingFromUrl,
   onEditItem,
+  onEditItemStatus,
   projectId,
   onViewItemImages
 }: ProjectItemsSectionProps) {
@@ -138,6 +140,7 @@ export function ProjectItemsSection({
           expandedItemId={expandedItemId}
           onTogglePrices={handleTogglePrices}
           onEditItem={onEditItem}
+          onEditItemStatus={onEditItemStatus}
           projectId={projectId}
           onViewItemImages={onViewItemImages}
           showLargeImages={showLargeImages}
@@ -149,6 +152,7 @@ export function ProjectItemsSection({
           expandedItemId={expandedItemId}
           onTogglePrices={handleTogglePrices}
           onEditItem={onEditItem}
+          onEditItemStatus={onEditItemStatus}
           projectId={projectId}
           onViewItemImages={onViewItemImages}
           showLargeImages={showLargeImages}

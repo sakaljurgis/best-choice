@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import type { Item } from '@shared/models/item';
+import type { Item, ItemStatus } from '@shared/models/item';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   projectsKeys,
@@ -23,6 +23,7 @@ import { ProjectDescriptionSection } from './project-description-section';
 import { TrackedAttributesSection } from './tracked-attributes-section';
 import { ProjectItemsSection } from './project-items-section';
 import { ItemImageGalleryOverlay, type GalleryImage } from './item-image-gallery-overlay';
+import { ItemStatusModal } from './item-status-modal';
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -48,6 +49,10 @@ export function ProjectDetailPage() {
   const [isLoadingItemDetails, setIsLoadingItemDetails] = useState(false);
   const [editItemError, setEditItemError] = useState<string | null>(null);
   const [isSavingItem, setIsSavingItem] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [statusModalItem, setStatusModalItem] = useState<Item | null>(null);
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
+  const [statusModalError, setStatusModalError] = useState<string | null>(null);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [galleryItemName, setGalleryItemName] = useState('');
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
@@ -348,6 +353,52 @@ export function ProjectDetailPage() {
     }
   };
 
+  const handleOpenItemStatusModal = (item: Item) => {
+    setStatusModalItem(item);
+    setStatusModalError(null);
+    setIsStatusModalOpen(true);
+  };
+
+  const handleCloseItemStatusModal = () => {
+    if (isSavingStatus) {
+      return;
+    }
+    setIsStatusModalOpen(false);
+    setStatusModalError(null);
+    setStatusModalItem(null);
+  };
+
+  const handleSubmitItemStatus = async ({
+    status,
+    note
+  }: {
+    status: ItemStatus;
+    note: string | null;
+  }) => {
+    if (!statusModalItem) {
+      return;
+    }
+
+    setIsSavingStatus(true);
+    setStatusModalError(null);
+    try {
+      await updateItemMutation.mutateAsync({
+        itemId: statusModalItem.id,
+        payload: { status, note }
+      });
+      setIsStatusModalOpen(false);
+      setStatusModalItem(null);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim().length
+          ? error.message.trim()
+          : 'Failed to update item.';
+      setStatusModalError(message);
+    } finally {
+      setIsSavingStatus(false);
+    }
+  };
+
   const handleModalClose = () => {
     setIsItemModalOpen(false);
     setQuickError(null);
@@ -597,6 +648,7 @@ export function ProjectDetailPage() {
         onAddManual={handleAddManualClick}
         isImportingFromUrl={isImportingItem}
         onEditItem={handleEditItem}
+        onEditItemStatus={handleOpenItemStatusModal}
         projectId={projectId}
         onViewItemImages={handleViewItemImages}
       />
@@ -625,6 +677,15 @@ export function ProjectDetailPage() {
         onClose={handleCloseGallery}
         onNext={handleGalleryNext}
         onPrevious={handleGalleryPrevious}
+      />
+
+      <ItemStatusModal
+        isOpen={isStatusModalOpen}
+        item={statusModalItem}
+        onClose={handleCloseItemStatusModal}
+        onSubmit={handleSubmitItemStatus}
+        isSubmitting={isSavingStatus || updateItemMutation.isPending}
+        errorMessage={statusModalError}
       />
     </div>
   );

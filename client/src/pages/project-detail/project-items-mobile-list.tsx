@@ -10,6 +10,7 @@ interface ProjectItemsMobileListProps {
   expandedItemId: string | null;
   onTogglePrices: (itemId: string) => void;
   onEditItem: (item: Item) => void;
+  onEditItemStatus: (item: Item) => void;
   projectId: string | undefined;
   onViewItemImages: (item: Item) => void;
   showLargeImages: boolean;
@@ -21,6 +22,7 @@ export function ProjectItemsMobileList({
   expandedItemId,
   onTogglePrices,
   onEditItem,
+  onEditItemStatus,
   projectId,
   onViewItemImages,
   showLargeImages
@@ -47,16 +49,28 @@ export function ProjectItemsMobileList({
                 <div className="flex items-start gap-2">
                   <button
                     type="button"
+                    onClick={() => onEditItemStatus(item)}
+                    className="mt-1 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-transparent transition hover:border-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                    title="Toggle active status or edit note"
+                  >
+                    <span
+                      aria-hidden
+                      className={`inline-block h-3 w-3 rounded-full ${
+                        item.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
+                      }`}
+                    />
+                    <span className="sr-only">
+                      {item.status === 'active'
+                        ? `Set ${displayName} as rejected or edit note`
+                        : `Set ${displayName} as active or edit note`}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => onEditItem(item)}
                     className="group flex flex-1 items-center gap-2 text-left text-slate-900 transition hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                     title="Edit item details"
                   >
-                    <span
-                      aria-hidden
-                      className={`inline-block h-2.5 w-2.5 rounded-full ${
-                        item.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
-                      }`}
-                    />
                     <span className="font-semibold group-hover:underline">{displayName}</span>
                   </button>
                   {item.sourceUrl ? (

@@ -11,6 +11,7 @@ interface ProjectItemsDesktopTableProps {
   expandedItemId: string | null;
   onTogglePrices: (itemId: string) => void;
   onEditItem: (item: Item) => void;
+  onEditItemStatus: (item: Item) => void;
   projectId: string | undefined;
   onViewItemImages: (item: Item) => void;
   showLargeImages: boolean;
@@ -22,6 +23,7 @@ export function ProjectItemsDesktopTable({
   expandedItemId,
   onTogglePrices,
   onEditItem,
+  onEditItemStatus,
   projectId,
   onViewItemImages,
   showLargeImages
@@ -73,9 +75,9 @@ export function ProjectItemsDesktopTable({
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => onEditItem(item)}
-                              className="group inline-flex items-center gap-2 rounded-md text-left text-slate-900 transition hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                              title="Edit item details"
+                              onClick={() => onEditItemStatus(item)}
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-transparent transition hover:border-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                              title="Toggle active status or edit note"
                             >
                               <span
                                 aria-hidden
@@ -83,6 +85,18 @@ export function ProjectItemsDesktopTable({
                                   item.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
                                 }`}
                               />
+                              <span className="sr-only">
+                                {item.status === 'active'
+                                  ? `Set ${displayName} as rejected or edit note`
+                                  : `Set ${displayName} as active or edit note`}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onEditItem(item)}
+                              className="group inline-flex items-center gap-2 rounded-md text-left text-slate-900 transition hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                              title="Edit item details"
+                            >
                               <span className="font-semibold group-hover:underline">
                                 {displayName}
                               </span>
