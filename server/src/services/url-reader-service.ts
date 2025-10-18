@@ -26,19 +26,19 @@ export const readUrlMarkdown = async (rawUrl: string): Promise<string> => {
     throw new HttpError(500, 'URL reader requires fetch support but it is unavailable.');
   }
 
-  if (!env.urlReader.apiKey) {
-    throw new HttpError(500, 'URL reader service is not configured.');
-  }
-
   const normalizedTargetUrl = ensureHttpUrl(rawUrl);
   const requestUrl = buildReaderUrl(normalizedTargetUrl);
+  const apiKey = env.urlReader.apiKey?.trim();
+  const headers: Record<string, string> = {};
+
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
 
   let response: Awaited<ReturnType<typeof fetch>>;
   try {
     response = await fetch(requestUrl, {
-      headers: {
-        Authorization: `Bearer ${env.urlReader.apiKey}`
-      }
+      headers
     });
   } catch {
     throw new HttpError(
