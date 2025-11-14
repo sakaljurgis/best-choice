@@ -16,7 +16,7 @@ if (env.client.serve) {
 
   if (fs.existsSync(clientDistPath) && fs.existsSync(indexHtmlPath)) {
     app.use(express.static(clientDistPath));
-    app.get('*', (req, res, next) => {
+    const spaHandler = (req: express.Request, res: express.Response, next: express.NextFunction) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         return next();
       }
@@ -34,7 +34,10 @@ if (env.client.serve) {
       }
 
       return res.sendFile(indexHtmlPath);
-    });
+    };
+
+    app.get('/*', spaHandler);
+    app.head('/*', spaHandler);
   } else {
     console.warn(
       `Static client assets not served because the build output was not found at "${clientDistPath}".`
